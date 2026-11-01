@@ -100,6 +100,11 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
   The winner, team standings and player records update for everyone live. Admins can
   also award a walkover. Optionally allow registered players to enter scores themselves
   (Admin → Event).
+- **Rules**: the document icon in the header (and "Rules & how we play" on Home) opens the
+  challenge rules — format, tie-breaks, BWF scoring, doubles serving rotation, faults, lets,
+  fair play. Admin → Event → "House rules" adds your own text at the top.
+- **Stats**: Players → Stats is a badhub-style player table (Sp, S, N, Quote, Satz ±, Ball ±);
+  Matches → Grid is the pair-by-pair head-to-head.
 - **Money**: admins add expenses (court, shuttles, food…), who paid, and whether it's
   split across everyone or one team. Everyone sees the total, their own share and
   balance, and a "settle up" list of who pays whom.

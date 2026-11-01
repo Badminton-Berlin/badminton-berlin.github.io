@@ -55,6 +55,7 @@ h3{font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 #app{height:100%;display:flex;flex-direction:column}
+header.top .actions{display:flex;gap:2px;flex:none}
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:10px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
 header.top .logo{width:44px;height:44px;border-radius:10px;flex:none}
 header.top .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
@@ -158,8 +159,9 @@ label.f textarea{min-height:70px;resize:vertical}
 .round-h::after{content:"";flex:1;height:1px;background:var(--line)}
 
 .table{width:100%;border-collapse:collapse;font-size:14px}
-.table th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
-.table td{padding:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:6px;border-bottom:1px solid var(--line);font-weight:600}
+.table td{padding:8px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.table td:first-child,.table th:first-child{padding-left:2px}.table td:last-child,.table th:last-child{padding-right:2px}
 .table tr:last-child td{border-bottom:0}
 .table td.n{text-align:right;font-family:var(--f-display);font-size:17px;font-weight:600}
 .table th.n{text-align:right}
@@ -219,9 +221,10 @@ code.uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
       <div class="eyebrow" id="hdrEyebrow">Badminton challenge</div>
       <h1 id="hdrTitle" style="font-size:24px">Preussenpark Challenge</h1>
     </div>
+    <div class="actions"><button class="icon-btn" data-act="rules" title="Rules" aria-label="Rules"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg></button>
     <button class="icon-btn" id="meBtn" title="My profile" aria-label="My profile">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-    </button>
+    </button></div>
   </header>
   <main id="view" aria-live="polite"></main>
   <nav class="tabs" id="tabs"></nav>
@@ -356,12 +359,18 @@ function buildFixtures(pairsA, pairsB, legs, courts){
 function standings(){
   const t = {A:{mw:0,ml:0,gw:0,gl:0,pf:0,pa:0}, B:{mw:0,ml:0,gw:0,gl:0,pf:0,pa:0}};
   const pairStats = {}; const playerStats = {};
-  const bump = (id, k)=>{ (pairStats[id] ||= {w:0,l:0})[k]++; const pr = byId(S.pairs,id); (pr?.players||[]).forEach(pid=> (playerStats[pid] ||= {w:0,l:0})[k]++); };
+  const ps = (coll,id)=> coll[id] ||= {sp:0,w:0,l:0,gw:0,gl:0,pf:0,pa:0};
   for(const m of S.matches){
-    const r = matchResult(m);
-    for(const g of (m.games||[])){ const [a,b]=g.map(x=>+x||0); t.A.pf+=a; t.A.pa+=b; t.B.pf+=b; t.B.pa+=a; const w=gameWinner(g); if(w==="A"){t.A.gw++;t.B.gl++;} if(w==="B"){t.B.gw++;t.A.gl++;} }
-    if(r.winner==="A"){ t.A.mw++; t.B.ml++; bump(m.pairA,"w"); bump(m.pairB,"l"); }
-    if(r.winner==="B"){ t.B.mw++; t.A.ml++; bump(m.pairB,"w"); bump(m.pairA,"l"); }
+    const r = matchResult(m); if(!r.done) continue;
+    let gw=0, gl=0, pf=0, pa=0; // from pair A's point of view
+    for(const g of (m.games||[])){ const [a,b]=g.map(x=>+x||0); pf+=a; pa+=b; const w=gameWinner(g); if(w==="A") gw++; if(w==="B") gl++; }
+    t.A.pf+=pf; t.A.pa+=pa; t.B.pf+=pa; t.B.pa+=pf; t.A.gw+=gw; t.A.gl+=gl; t.B.gw+=gl; t.B.gl+=gw;
+    if(r.winner==="A"){ t.A.mw++; t.B.ml++; } else { t.B.mw++; t.A.ml++; }
+    const sides = [[m.pairA,"A",gw,gl,pf,pa],[m.pairB,"B",gl,gw,pa,pf]];
+    for(const [pid,side,a,b,c,d] of sides){
+      const won = r.winner===side; const add = st=>{ st.sp++; won?st.w++:st.l++; st.gw+=a; st.gl+=b; st.pf+=c; st.pa+=d; };
+      add(ps(pairStats,pid)); (byId(S.pairs,pid)?.players||[]).forEach(x=> add(ps(playerStats,x)));
+    }
   }
   return {t, pairStats, playerStats};
 }
@@ -451,6 +460,7 @@ function vHome(){
   <section class="card stack">
     <div class="sec-head"><h3>Format</h3><span class="pill">2 v 2 doubles</span></div>
     <p class="lead" style="margin:0">${projectedText(projected)}</p>
+    <button class="btn block" data-act="rules">Rules &amp; how we play</button>
   </section>
   ${next.length ? `<section class="stack"><div class="sec-head"><h3>Up next</h3><button class="btn ghost sm" data-act="tab" data-tab="matches">All matches</button></div>${next.map(matchCard).join("")}</section>` : ""}
   ${S.matches.length ? `<section class="card stack"><h3>Standings</h3>${standingsTable()}</section>` : ""}`;
@@ -469,8 +479,9 @@ function projectedText(p){
 }
 function standingsTable(){
   const {t} = standings();
-  const row = (k)=>`<tr><td><span class="pill ${k}">${esc(teamShort(k))}</span> ${esc(teamName(k))}</td><td class="n">${t[k].mw}</td><td class="n">${t[k].ml}</td><td class="n">${t[k].gw}–${t[k].gl}</td><td class="n">${t[k].pf-t[k].pa>0?"+":""}${t[k].pf-t[k].pa}</td></tr>`;
-  return `<div class="scroll-x"><table class="table"><thead><tr><th>Team</th><th class="n">W</th><th class="n">L</th><th class="n">Games</th><th class="n">+/−</th></tr></thead><tbody>${row("A")}${row("B")}</tbody></table></div>`;
+  const order = ["A","B"].sort((x,y)=> (t[y].mw-t[x].mw) || ((t[y].gw-t[y].gl)-(t[x].gw-t[x].gl)) || ((t[y].pf-t[y].pa)-(t[x].pf-t[x].pa)));
+  const row = (k,i)=>`<tr><td class="n muted">${i+1}</td><td><span class="pill ${k}">${esc(teamShort(k))}</span> ${esc(teamName(k))}</td><td class="n">${t[k].mw+t[k].ml}</td><td class="n">${t[k].mw}</td><td class="n">${t[k].ml}</td><td class="n">${t[k].gw}:${t[k].gl}</td><td class="n">${t[k].pf}:${t[k].pa}</td></tr>`;
+  return `<div class="scroll-x"><table class="table"><thead><tr><th class="n">#</th><th>Team</th><th class="n" title="Matches played">Sp</th><th class="n" title="Wins">S</th><th class="n" title="Losses">N</th><th class="n" title="Games won:lost">Sätze</th><th class="n" title="Points won:lost">Bälle</th></tr></thead><tbody>${order.map(row).join("")}</tbody></table></div>`;
 }
 
 /* ---- Players ---- */
@@ -482,14 +493,28 @@ function vPlayers(){
     return `<div class="list">${ps.map(p=>{ const s=playerStats[p.id]; const pr=S.pairs.find(x=>(x.players||[]).includes(p.id)); const a=age(p.dob);
       return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</b><span>${a!=null?a+" yrs":""}${pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>`;
   };
+  if(S.filter==="stats") return `
+  <div class="seg" data-seg="filter"><button class="A" aria-pressed="false" data-val="A">${esc(S.event.shortA)}</button><button class="B" aria-pressed="false" data-val="B">${esc(S.event.shortB)}</button><button aria-pressed="true" data-val="stats">Stats</button></div>
+  ${playerStatsTable()}`;
   return `
-  <div class="seg" data-seg="filter"><button class="A" aria-pressed="${S.filter!=="B"}" data-val="A">${esc(S.event.shortA)} (${S.players.filter(p=>p.team==="A").length})</button><button class="B" aria-pressed="${S.filter==="B"}" data-val="B">${esc(S.event.shortB)} (${S.players.filter(p=>p.team==="B").length})</button></div>
+  <div class="seg" data-seg="filter"><button class="A" aria-pressed="${S.filter!=="B"}" data-val="A">${esc(S.event.shortA)} (${S.players.filter(p=>p.team==="A").length})</button><button class="B" aria-pressed="${S.filter==="B"}" data-val="B">${esc(S.event.shortB)} (${S.players.filter(p=>p.team==="B").length})</button><button aria-pressed="false" data-val="stats">Stats</button></div>
   ${list(S.filter==="B"?"B":"A")}
   ${!me() ? `<button class="btn primary block" data-act="register">Register yourself</button>` : ""}`;
 }
+function playerStatsTable(){
+  const {playerStats} = standings();
+  const rows = S.players.map(p=>({p, s: playerStats[p.id]||{sp:0,w:0,l:0,gw:0,gl:0,pf:0,pa:0}})).filter(x=>x.s.sp>0);
+  if(!rows.length) return `<div class="empty"><b>No results yet</b>Player statistics appear once the first match is scored.</div>`;
+  rows.forEach(x=> x.q = x.s.w/x.s.sp);
+  rows.sort((a,b)=> (b.q-a.q) || (b.s.w-a.s.w) || ((b.s.gw-b.s.gl)-(a.s.gw-a.s.gl)) || ((b.s.pf-b.s.pa)-(a.s.pf-a.s.pa)));
+  const sg = n => (n>0?"+":"")+n;
+  return `<section class="card stack"><div class="sec-head"><h3>Player table</h3><span class="tiny muted">sorted by win rate</span></div><div class="scroll-x"><table class="table"><thead><tr><th class="n">#</th><th>Player</th><th class="n" title="Matches">Sp</th><th class="n" title="Wins">S</th><th class="n" title="Losses">N</th><th class="n" title="Win rate">Quote</th><th class="n" title="Games ±">Satz ±</th><th class="n" title="Points ±">Ball ±</th></tr></thead><tbody>
+  ${rows.map((x,i)=>`<tr><td class="n muted">${i+1}</td><td><button class="item" style="padding:0;gap:8px;width:auto" data-act="player" data-id="${x.p.id}">${avatar(x.p,"sm")}<span style="font-weight:600">${esc(fullName(x.p))}</span> <span class="pill ${x.p.team}">${esc(teamShort(x.p.team))}</span></button></td><td class="n">${x.s.sp}</td><td class="n">${x.s.w}</td><td class="n">${x.s.l}</td><td class="n">${Math.round(x.q*100)}%</td><td class="n">${sg(x.s.gw-x.s.gl)}</td><td class="n">${sg(x.s.pf-x.s.pa)}</td></tr>`).join("")}
+  </tbody></table></div></section>`;
+}
 function sheetPlayer(id){
   const p = byId(S.players,id); if(!p) return;
-  const {playerStats} = standings(); const s = playerStats[id]||{w:0,l:0};
+  const {playerStats} = standings(); const s = playerStats[id]||{w:0,l:0,sp:0};
   const pr = S.pairs.find(x=>(x.players||[]).includes(id));
   const mine = S.matches.filter(m=> pr && (m.pairA===pr.id||m.pairB===pr.id)).sort((a,b)=>a.order-b.order);
   const a = age(p.dob);
@@ -524,8 +549,17 @@ function vMatches(){
   const rounds = [...new Set(ms.map(m=>m.round))].sort((a,b)=>a-b);
   return `
   <section class="card stack">${standingsTable()}</section>
-  <div class="seg" data-seg="filterM">${[["all","All"],["open","To play"],["done","Played"]].concat(myPair?[["mine","Mine"]]:[]).map(([k,l])=>`<button aria-pressed="${f===k}" data-val="${k}">${l}</button>`).join("")}</div>
-  ${ms.length? rounds.map(r=>`<div class="round-h"><h3>Round ${r}</h3></div><div class="stack">${ms.filter(m=>m.round===r).map(matchCard).join("")}</div>`).join("") : `<div class="empty">Nothing here.</div>`}`;
+  <div class="seg" data-seg="filterM">${[["all","All"],["open","To play"],["done","Played"]].concat(myPair?[["mine","Mine"]]:[]).concat([["grid","Grid"]]).map(([k,l])=>`<button aria-pressed="${f===k}" data-val="${k}">${l}</button>`).join("")}</div>
+  ${f==="grid" ? h2hGrid() : ms.length? rounds.map(r=>`<div class="round-h"><h3>Round ${r}</h3></div><div class="stack">${ms.filter(m=>m.round===r).map(matchCard).join("")}</div>`).join("") : `<div class="empty">Nothing here.</div>`}`;
+}
+function h2hGrid(){
+  const pa=S.pairs.filter(p=>p.team==="A").sort((a,b)=>(a.order||0)-(b.order||0)), pb=S.pairs.filter(p=>p.team==="B").sort((a,b)=>(a.order||0)-(b.order||0));
+  const {pairStats} = standings();
+  const cell=(a,b)=>{ const ms=S.matches.filter(m=>m.pairA===a.id&&m.pairB===b.id); if(!ms.length) return `<td class="n muted">–</td>`;
+    return `<td class="n">${ms.map(m=>{const r=matchResult(m); if(!r.done) return `<button class="btn ghost sm" data-act="match" data-id="${m.id}" style="color:var(--muted)">offen</button>`; return `<button class="btn ghost sm" data-act="match" data-id="${m.id}" style="color:${r.winner==="A"?"var(--team-a)":"var(--team-b)"};font-family:var(--f-display);font-size:16px">${r.wa}:${r.wb}</button>`;}).join("<br>")}</td>`; };
+  const rec = id => { const s=pairStats[id]; return s? `<span class="tiny muted">${s.w}:${s.l}</span>` : ""; };
+  return `<section class="card stack"><div class="sec-head"><h3>Head to head</h3><span class="tiny muted">games won, ${esc(S.event.shortA)} : ${esc(S.event.shortB)}</span></div><div class="scroll-x"><table class="table"><thead><tr><th>${esc(S.event.shortA)} ↓ · ${esc(S.event.shortB)} →</th>${pb.map(b=>`<th class="n"><span style="color:var(--team-b)">${esc(pairLabel(b))}</span><br>${rec(b.id)}</th>`).join("")}</tr></thead><tbody>
+  ${pa.map(a=>`<tr><td><span style="color:var(--team-a);font-weight:600">${esc(pairLabel(a))}</span> ${rec(a.id)}</td>${pb.map(b=>cell(a,b)).join("")}</tr>`).join("")}</tbody></table></div></section>`;
 }
 function sheetMatch(id){
   const m = byId(S.matches,id); if(!m) return;
@@ -627,6 +661,62 @@ function vAdmin(){
   </section>
   ${isDemo?`<section class="card stack"><h3>Demo data</h3><div class="row"><button class="btn" data-act="seed">Load sample players</button><button class="btn danger" data-act="resetDemo">Reset everything</button></div></section>`:""}`;
 }
+function sheetRules(){
+  const e=S.event, need=Math.ceil((e.bestOf||3)/2), T=e.pointsTo||21, cap=T+9;
+  const h = t=>`<h3 style="margin-top:6px">${t}</h3>`;
+  const ul = items=>`<ul style="margin:0;padding-left:20px;display:grid;gap:6px">${items.map(i=>`<li>${i}</li>`).join("")}</ul>`;
+  openSheet("Rules", `<div class="stack" style="gap:12px;font-size:15px">
+    ${e.houseRules?`<div class="banner info" style="display:block;white-space:pre-wrap;font-weight:500">${esc(e.houseRules)}</div>`:""}
+    ${h("The challenge")}
+    ${ul([
+      `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2). Every pair plays every pair of the other team${e.legs>1?` ${e.legs} times`:" once"}.`,
+      `A match is <b>best of ${e.bestOf} game${e.bestOf>1?"s":""}</b> to <b>${T}</b> points (first to ${need} game${need>1?"s":""} wins).`,
+      `The team with more match wins takes the challenge. Tie-break: games difference, then points difference, then one deciding match between pairs chosen by the captains.`,
+      `Pairs and the schedule are set by the organiser in this app. Check your round and court under <b>Matches</b>; be at the court when the previous match finishes.`,
+      `A pair that is not ready 10 minutes after being called forfeits the match (walkover) at the organiser's discretion.`,
+      `Matches are self-umpired. The server calls the score aloud before every serve. If a call is disputed and the pairs can't agree, replay the rally.`,
+      `Scores are entered in this app${e.allowPlayerScores?" by the winning pair right after the match":" by the organiser"}; both pairs confirm the result before leaving the court.`,
+      `Shared costs (courts, shuttles, food) are tracked under <b>Money</b> and split as shown there.`
+    ])}
+    ${h("Scoring")}
+    ${ul([
+      `Rally point: every rally scores a point, whoever served.`,
+      `A game goes to ${T}. At ${T-1}–${T-1} you need a 2-point lead; at ${cap-1}–${cap-1} the next point wins (${cap}).`,
+      `Change ends after each game, and in the deciding game when the leading side reaches ${Math.ceil(T/2)}.`,
+      `Short breaks: up to 60 seconds when a side first reaches ${Math.ceil(T/2)} in a game, up to 2 minutes between games.`
+    ])}
+    ${h("Serving in doubles")}
+    ${ul([
+      `Serve diagonally, from the <b>right</b> service court when your side's score is <b>even</b> (0, 2, 4…) and from the <b>left</b> when it is <b>odd</b>.`,
+      `Hit the serve underarm with the whole shuttle below your waist (official rule: below 1.15 m), racket moving forward, both feet on the floor inside the service court. Don't step on the lines.`,
+      `If the serving side wins the rally, the <b>same server</b> serves again from the other service court. Only the serving side swaps courts, and only when it scores.`,
+      `If the receiving side wins the rally, it becomes the serving side; nobody changes courts. The player whose service court matches the new score (even = right, odd = left) serves.`,
+      `Only the diagonally opposite player may return the serve. After the serve, anyone can hit the shuttle.`,
+      `The serve must land in the diagonal doubles service box: beyond the short service line and inside the <b>inner</b> back line. For the rest of the rally the whole court out to the outer side and back lines is in.`
+    ])}
+    ${h("Faults")}
+    ${ul([
+      `The shuttle lands outside the lines (on the line is in), goes under or through the net, or doesn't cross the net.`,
+      `The shuttle touches the ceiling, a wall, a player or their clothes.`,
+      `A player hits the shuttle twice, or both partners hit it in one shot.`,
+      `A player touches the net or posts with racket, body or clothes, or reaches over the net to hit (following through over the net after a hit on your side is fine).`,
+      `The shuttle is hit before it crosses the net, or a player deliberately distracts or obstructs an opponent.`
+    ])}
+    ${h("Lets (replay the rally)")}
+    ${ul([
+      `The server serves before the receiver is ready (the receiver must not have tried to return).`,
+      `The shuttle gets caught on the net after passing it, or breaks during the rally.`,
+      `A shuttle from another court comes onto yours, or the rally is otherwise interrupted.`
+    ])}
+    ${h("Fair play")}
+    ${ul([
+      `Shake hands before and after. Call your own side's faults and shuttles that land on your side.`,
+      `Keep the pace up: no coaching time-outs in the middle of a game, no long arguments over calls.`,
+      `Help the organiser: bring the shuttles back, move your match on as soon as a court is free.`
+    ])}
+    <p class="tiny muted" style="margin:0">Based on the BWF Laws of Badminton; the organiser can add house rules in Admin → Event.</p>
+  </div>`, "");
+}
 function sheetEvent(){
   const e=S.event;
   openSheet("Event settings", `<form id="evForm" class="stack">
@@ -638,6 +728,7 @@ function sheetEvent(){
     <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
     <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
     <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>
+    <label class="f">House rules (shown at the top of the Rules page)<textarea id="evRules" placeholder="e.g. Bring your own racket. Nylon shuttles, Yonex Mavis 350. Doors open 9:30.">${esc(e.houseRules||"")}</textarea></label>
     <label class="check"><input type="checkbox" id="evReg" ${e.registrationOpen?"checked":""}> Registration open</label>
     <label class="check"><input type="checkbox" id="evScores" ${e.allowPlayerScores?"checked":""}> Registered players may enter scores <span class="help">(otherwise admins only)</span></label>
   </form>`, `<button class="btn primary" data-act="saveEvent">Save</button>`);
@@ -705,6 +796,7 @@ document.addEventListener("click", e => {
     close: closeSheet,
     tab: ()=>{ S.tab=b.dataset.tab; render(); },
     register: ()=> sheetProfile(null),
+    rules: sheetRules,
     addPlayer: ()=>{ S._adminAdd=true; sheetProfile(null); },
     player: ()=> sheetPlayer(id),
     editPlayer: ()=> sheetProfile(id),
@@ -744,7 +836,7 @@ document.addEventListener("click", e => {
     delExpense: ()=> confirmSheet("Delete expense", "Delete this expense?", "Delete", ()=>guard(async()=>{ await store.remove("expenses", id); closeSheet(); })),
     editEvent: sheetEvent,
     saveEvent: ()=> guard(async ()=>{
-      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked};
+      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked, houseRules:$("#evRules").value.trim()};
       await store.set("settings","event",data); closeSheet(); toast("Event saved"); }),
     pick: ()=>{ const p=byId(S.players,id); let pk=(S.pick||[]).filter(x=>byId(S.players,x)?.team===p.team); if(pk.includes(id)) pk=pk.filter(x=>x!==id); else pk.push(id); S.pick=pk.slice(-2); render(); },
     makePair: ()=> guard(async ()=>{ const ps=(S.pick||[]).map(x=>byId(S.players,x)).filter(Boolean); if(ps.length!==2) return; await store.set("pairs", store.newId(), {team:ps[0].team, players:ps.map(p=>p.id), order:S.pairs.filter(p=>p.team===ps[0].team).length, createdAt:Date.now()}); S.pick=[]; toast("Pair created"); }),
