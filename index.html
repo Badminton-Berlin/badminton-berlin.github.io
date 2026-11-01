@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f6b4f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Challenge">
+<meta name="description" content="Registration, pairs, schedule, scores and expenses for the Lichtenrade/Lankwitz vs Spandau/Staaken badminton challenge.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Preussenpark Challenge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen phone app; sticky header, scrolling content, fixed bottom tab bar; sheets slide up for forms. */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --surface-2:#e9ebe6; --fg:#171a17; --muted:#5d645e; --line:#d6d9d2;
+  --accent:#0f6b4f; --accent-ink:#ffffff;
+  --team-a:#0f6b4f; --team-a-soft:#d8ece4; --team-b:#c8501e; --team-b-soft:#f7dfd3;
+  --good:#1d7a3a; --warn:#b26a00; --bad:#b5312c;
+  --shadow:0 8px 24px rgba(20,30,20,.10);
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#121513; --surface:#1b1f1c; --surface-2:#242925; --fg:#eef0ea; --muted:#9ba39c; --line:#30362f;
+  --accent:#3fb98f; --accent-ink:#0b1a13;
+  --team-a:#3fb98f; --team-a-soft:#173a2f; --team-b:#f0834f; --team-b-soft:#4a2718;
+  --good:#58c47a; --warn:#e5a53a; --bad:#ef7a73; --shadow:0 8px 24px rgba(0,0,0,.45); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#121513; --surface:#1b1f1c; --surface-2:#242925; --fg:#eef0ea; --muted:#9ba39c; --line:#30362f;
+  --accent:#3fb98f; --accent-ink:#0b1a13;
+  --team-a:#3fb98f; --team-a-soft:#173a2f; --team-b:#f0834f; --team-b-soft:#4a2718;
+  --good:#58c47a; --warn:#e5a53a; --bad:#ef7a73; --shadow:0 8px 24px rgba(0,0,0,.45); color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 var(--f-body);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{font-family:var(--f-display);line-height:1.05;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:30px;font-weight:800}
+h2{font-size:22px;font-weight:700}
+h3{font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.num{font-family:var(--f-display);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+#app{height:100%;display:flex;flex-direction:column}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:10px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
+header.top .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+main{flex:1;overflow-y:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(90px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:var(--surface);border-top:1px solid var(--line);padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+nav.tabs button{flex:1;background:none;border:0;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:11px;font-weight:600;border-radius:10px;min-width:0}
+nav.tabs button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs button[aria-current="page"]{color:var(--accent)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row>*{min-width:0}
+.spread{justify-content:space-between}
+.grow{flex:1}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.tiny{font-size:12px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.sec-head h3{margin:0}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 14px;font-weight:600;font-size:15px;min-height:42px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.sm{padding:6px 10px;min-height:34px;font-size:14px;border-radius:10px}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5;cursor:default}
+.icon-btn{border:0;background:none;padding:6px;border-radius:10px;color:var(--muted);display:inline-flex}
+.icon-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--muted)}
+label.f input,label.f select,label.f textarea{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;font-size:16px;font-weight:400;color:var(--fg);width:100%;min-height:44px}
+label.f textarea{min-height:70px;resize:vertical}
+.check{display:flex;align-items:center;gap:10px;font-weight:500;font-size:15px;padding:6px 0}
+.check input{width:22px;height:22px;accent-color:var(--accent)}
+.help{font-size:12px;color:var(--muted);font-weight:400}
+
+.seg{display:flex;background:var(--surface-2);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:10px;padding:9px 6px;font-weight:600;font-size:14px;color:var(--muted);min-width:0}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button.A[aria-pressed="true"]{color:var(--team-a)}
+.seg button.B[aria-pressed="true"]{color:var(--team-b)}
+
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pill.A{background:var(--team-a-soft);color:var(--team-a)}
+.pill.B{background:var(--team-b-soft);color:var(--team-b)}
+.pill.good{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.live{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+
+.avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--surface-2);flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--f-display);font-weight:700;font-size:16px;color:var(--muted);border:2px solid var(--surface)}
+.avatar.lg{width:88px;height:88px;font-size:30px}
+.avatar.sm{width:30px;height:30px;font-size:12px}
+.avatar.A{border-color:var(--team-a)} .avatar.B{border-color:var(--team-b)}
+
+.hero{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px}
+.hero .meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:var(--muted);font-size:14px}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.vs .team{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vs .team.b{text-align:right;align-items:flex-end}
+.vs .tname{font-family:var(--f-display);font-weight:700;font-size:18px;line-height:1.1;overflow-wrap:anywhere}
+.vs .score{font-family:var(--f-display);font-weight:800;font-size:54px;line-height:1;font-variant-numeric:tabular-nums}
+.vs .team.a .score,.vs .team.a .tname{color:var(--team-a)} .vs .team.b .score,.vs .team.b .tname{color:var(--team-b)}
+.vs .dash{font-family:var(--f-display);font-size:26px;color:var(--muted);font-weight:600}
+.countdown{display:flex;gap:8px}
+.countdown div{flex:1;background:var(--surface-2);border-radius:10px;padding:8px 4px;text-align:center}
+.countdown b{display:block;font-family:var(--f-display);font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+.countdown span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 10px 8px;min-width:0}
+.stat b{display:block;font-family:var(--f-display);font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--line);text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;width:100%;color:inherit;min-width:0}
+.item:first-child{border-top:0}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .t span{display:block;font-size:13px;color:var(--muted)}
+.item .amt{font-family:var(--f-display);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.item.sel{background:var(--team-a-soft)}
+.item.sel.B{background:var(--team-b-soft)}
+
+.match{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:8px;width:100%;text-align:left;color:inherit}
+.match .hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.match .side{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px}
+.match .side .names{display:flex;align-items:center;gap:6px;min-width:0;font-weight:600}
+.match .side .names span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.match .side .names .stripe{width:4px;height:22px;border-radius:2px;flex:none}
+.match .side.A .stripe{background:var(--team-a)} .match .side.B .stripe{background:var(--team-b)}
+.match .side.win .names{color:var(--fg)} .match .side.lose .names{color:var(--muted)}
+.match .games{display:flex;gap:6px}
+.match .games b{font-family:var(--f-display);font-size:20px;font-weight:700;min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
+.match .games b.w{color:var(--fg)} .match .games b.l{color:var(--muted);font-weight:500}
+.match.mine{border-color:var(--accent)}
+.round-h{display:flex;align-items:center;gap:10px;margin-top:4px}
+.round-h h3{white-space:nowrap}
+.round-h::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.table{width:100%;border-collapse:collapse;font-size:14px}
+.table th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
+.table td{padding:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.table tr:last-child td{border-bottom:0}
+.table td.n{text-align:right;font-family:var(--f-display);font-size:17px;font-weight:600}
+.table th.n{text-align:right}
+.scroll-x{overflow-x:auto}
+
+.pairgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pairbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;position:relative;min-width:0}
+.pairbox.A{border-top:4px solid var(--team-a)} .pairbox.B{border-top:4px solid var(--team-b)}
+.pairbox .pname{font-family:var(--f-display);font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.pairbox .p{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;min-width:0}
+.pairbox .p span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pairbox .x{position:absolute;top:6px;right:6px}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px 6px 6px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface))}
+
+.empty{text-align:center;color:var(--muted);padding:28px 16px;border:1px dashed var(--line);border-radius:var(--r);font-size:15px}
+.empty b{display:block;color:var(--fg);font-family:var(--f-display);font-size:20px;margin-bottom:4px}
+.banner{background:var(--team-b-soft);color:var(--team-b);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.banner.info{background:var(--team-a-soft);color:var(--team-a)}
+.banner .btn{min-height:32px;padding:4px 10px;font-size:13px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;font-size:14px;z-index:40;box-shadow:var(--shadow);max-width:calc(100vw - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* Sheets */
+.scrim{position:fixed;inset:0;background:rgba(10,14,10,.5);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:92%;border-radius:20px 20px 0 0;display:flex;flex-direction:column;animation:up .22s ease-out;box-shadow:var(--shadow)}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.sheet .sh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line)}
+.sheet .sb{overflow-y:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+.sheet .sf{display:flex;gap:10px;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));border-top:1px solid var(--line);background:var(--bg)}
+.sheet .sf .btn{flex:1}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:20px;max-height:90%}}
+
+.photo-pick{display:flex;align-items:center;gap:14px}
+.photo-pick input{position:absolute;opacity:0;width:1px;height:1px}
+.scorebox{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
+.scorebox .sc{display:flex;flex-direction:column;align-items:center;gap:4px}
+.scorebox input{width:84px;text-align:center;font-family:var(--f-display);font-size:38px;font-weight:800;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:6px;min-height:60px;font-variant-numeric:tabular-nums}
+.scorebox .pm{display:flex;gap:6px}
+.scorebox .pm button{width:40px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:600}
+.glabel{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;text-align:center}
+.balance.pos{color:var(--good)} .balance.neg{color:var(--bad)}
+.demo{background:var(--fg);color:var(--bg);font-size:12px;font-weight:600;padding:6px max(16px,env(safe-area-inset-right,0px)) 6px max(16px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.demo .check{padding:0;font-size:12px}
+.demo .check input{width:16px;height:16px}
+code.uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--surface-2);padding:3px 6px;border-radius:6px;overflow-wrap:anywhere}
+.lead{font-size:15px;color:var(--muted);max-width:60ch}
+</style>
+
+<div id="app">
+  <div id="demoBar" class="demo" hidden></div>
+  <header class="top">
+    <div style="min-width:0">
+      <div class="eyebrow" id="hdrEyebrow">Badminton challenge</div>
+      <h1 id="hdrTitle" style="font-size:24px">Preussenpark Challenge</h1>
+    </div>
+    <button class="icon-btn" id="meBtn" title="My profile" aria-label="My profile">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </button>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <nav class="tabs" id="tabs"></nav>
+</div>
+<div id="sheetHost"></div>
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+/* ============================================================
+   CONFIG — paste your Firebase web app config here.
+   Leave it as null to run in demo mode (data stays on this device).
+   ============================================================ */
+const FIREBASE_CONFIG = null;
+/* Example:
+const FIREBASE_CONFIG = {
+  apiKey: "AIza...", authDomain: "your-app.firebaseapp.com", projectId: "your-app",
+  storageBucket: "your-app.appspot.com", messagingSenderId: "123", appId: "1:123:web:abc"
+};
+*/
+const FIREBASE_VERSION = "11.6.1";
+
+const DEFAULT_EVENT = {
+  name: "Preussenpark Challenge",
+  date: "2027-01-03",
+  time: "10:00",
+  venue: "Preussenpark, Berlin",
+  teamA: "Lichtenrade/Lankwitz", shortA: "LL",
+  teamB: "Spandau/Staaken", shortB: "SS",
+  courts: 2,
+  legs: 1,
+  bestOf: 3,
+  pointsTo: 21,
+  registrationOpen: true,
+  allowPlayerScores: false,
+  currency: "€"
+};
+
+/* ---------------- Store abstraction (Firebase or local demo) ---------------- */
+const COLS = ["players","pairs","matches","expenses","settings"];
+let store, uid = null, isDemo = !FIREBASE_CONFIG;
+
+function uidKey(){ return "ppc_uid"; }
+function rnd(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+function lsGet(k,d){ try{ const v = localStorage.getItem(k); return v==null? d : JSON.parse(v);}catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+function makeDemoStore(){
+  const KEY = "ppc_demo_v1";
+  let data = lsGet(KEY, null) || Object.fromEntries(COLS.map(c=>[c,{}]));
+  const subs = {};
+  const save = ()=> lsSet(KEY, data);
+  const notify = c => (subs[c]||[]).forEach(fn => fn(Object.entries(data[c]).map(([id,d])=>({id,...d}))));
+  return {
+    subscribe(c, fn){ (subs[c] ||= []).push(fn); fn(Object.entries(data[c]).map(([id,d])=>({id,...d}))); return ()=>{ subs[c]=subs[c].filter(f=>f!==fn); }; },
+    async set(c,id,d){ data[c][id] = JSON.parse(JSON.stringify(d)); save(); notify(c); },
+    async update(c,id,p){ data[c][id] = {...(data[c][id]||{}), ...JSON.parse(JSON.stringify(p))}; save(); notify(c); },
+    async remove(c,id){ delete data[c][id]; save(); notify(c); },
+    async removeAll(c){ data[c] = {}; save(); notify(c); },
+    newId: rnd,
+    async reset(){ data = Object.fromEntries(COLS.map(c=>[c,{}])); save(); COLS.forEach(notify); }
+  };
+}
+
+async function makeFirebaseStore(){
+  const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/`;
+  const [{initializeApp}, auth, fs] = await Promise.all([
+    import(base+"firebase-app.js"), import(base+"firebase-auth.js"), import(base+"firebase-firestore.js")
+  ]);
+  const app = initializeApp(FIREBASE_CONFIG);
+  const a = auth.getAuth(app);
+  await auth.setPersistence(a, auth.browserLocalPersistence).catch(()=>{});
+  const cred = await new Promise((res, rej)=>{
+    const off = auth.onAuthStateChanged(a, u => { if(u){ off(); res(u); } else auth.signInAnonymously(a).catch(rej); }, rej);
+  });
+  uid = cred.uid;
+  const db = fs.getFirestore(app);
+  try { fs.enableIndexedDbPersistence && await fs.enableIndexedDbPersistence(db); } catch(e){}
+  const strip = d => JSON.parse(JSON.stringify(d));
+  return {
+    subscribe(c, fn){ return fs.onSnapshot(fs.collection(db,c), snap => fn(snap.docs.map(d=>({id:d.id, ...d.data()}))), err => { console.error(err); toast("Could not load "+c+": "+err.code); }); },
+    set:(c,id,d)=> fs.setDoc(fs.doc(db,c,id), strip(d)),
+    update:(c,id,p)=> fs.setDoc(fs.doc(db,c,id), strip(p), {merge:true}),
+    remove:(c,id)=> fs.deleteDoc(fs.doc(db,c,id)),
+    async removeAll(c){ const snap = await fs.getDocs(fs.collection(db,c)); const b = fs.writeBatch(db); snap.docs.forEach(d=>b.delete(d.ref)); await b.commit(); },
+    newId: ()=> fs.doc(fs.collection(db,"_ids")).id,
+    reset: null
+  };
+}
+
+/* ---------------- State ---------------- */
+const S = { event: {...DEFAULT_EVENT}, admins: null, players: [], pairs: [], matches: [], expenses: [], tab: "home", filter: "all", demoAdmin: lsGet("ppc_demo_admin", true), online:true };
+const isAdmin = ()=> isDemo ? S.demoAdmin : !!(S.admins && uid && S.admins.uids && S.admins.uids.includes(uid));
+const me = ()=> S.players.find(p => p.id === uid) || null;
+const byId = (arr, id)=> arr.find(x=>x.id===id);
+const teamName = t => t==="A" ? S.event.teamA : S.event.teamB;
+const teamShort = t => t==="A" ? S.event.shortA : S.event.shortB;
+const fullName = p => p ? `${p.first||""} ${p.last||""}`.trim() : "—";
+const initials = p => p ? ((p.first||"?")[0] + (p.last||"")[0]||"").toUpperCase() : "?";
+const money = c => (S.event.currency||"€") + (c/100).toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2});
+const esc = s => String(s??"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+function age(dob){ if(!dob) return null; const d=new Date(dob), n=new Date(); let a=n.getFullYear()-d.getFullYear(); const m=n.getMonth()-d.getMonth(); if(m<0||(m===0&&n.getDate()<d.getDate())) a--; return a; }
+function fmtDate(iso){ if(!iso) return ""; const d = new Date(iso+"T12:00:00"); return d.toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short", year:"numeric"}); }
+
+/* ---------------- Game logic ---------------- */
+function gameWinner(g){ const [a,b]=g.map(x=>+x||0), T=S.event.pointsTo||21, cap=T+9; if(a===b) return null; const hi=Math.max(a,b), lo=Math.min(a,b); if(hi<T) return null; if(hi-lo>=2 || hi>=cap) return a>b?"A":"B"; return null; }
+function matchResult(m){
+  const need = Math.ceil((S.event.bestOf||3)/2); let wa=0, wb=0;
+  for(const g of (m.games||[])){ const w=gameWinner(g); if(w==="A") wa++; else if(w==="B") wb++; }
+  const winner = m.walkover || (wa>=need ? "A" : wb>=need ? "B" : null);
+  return {wa, wb, winner, done: !!winner};
+}
+function pairPlayers(pr){ return (pr?.players||[]).map(id=>byId(S.players,id)).filter(Boolean); }
+function pairLabel(pr){ if(!pr) return "—"; const ps = pairPlayers(pr); return ps.length ? ps.map(p=>p.first).join(" & ") : (pr.name||"Pair"); }
+function autoPairs(players, mode){
+  const ps = [...players];
+  if(mode==="random"){ for(let i=ps.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [ps[i],ps[j]]=[ps[j],ps[i]]; } return chunk2(ps); }
+  if(mode==="balanced"){ ps.sort((a,b)=> (a.dob||"9999") < (b.dob||"9999") ? -1 : 1); const out=[]; let i=0, j=ps.length-1; while(i<j){ out.push([ps[i],ps[j]]); i++; j--; } if(i===j) out.push([ps[i]]); return out; }
+  return chunk2(ps);
+}
+function chunk2(ps){ const out=[]; for(let i=0;i<ps.length;i+=2) out.push(ps.slice(i,i+2)); return out; }
+function buildFixtures(pairsA, pairsB, legs, courts){
+  // Bipartite round-robin: every A pair meets every B pair once per leg, and no pair plays twice in a round.
+  const nA=pairsA.length, nB=pairsB.length, L=Math.max(nA,nB); const rounds=[];
+  for(let leg=1; leg<=legs; leg++) for(let s=0; s<L; s++){
+    const r=[]; for(let i=0;i<L;i++){ const j=(i+s)%L; if(i<nA && j<nB) r.push({pairA:pairsA[i].id, pairB:pairsB[j].id, leg}); }
+    // courts limit: split a logical round into as many rounds as needed
+    for(let k=0;k<r.length;k+=Math.max(1,courts)) rounds.push(r.slice(k,k+Math.max(1,courts)));
+  }
+  const out=[]; rounds.forEach((r,ri)=> r.forEach((m,ci)=> out.push({...m, round:ri+1, court:ci+1, order:out.length, games:[], walkover:null, status:"scheduled"})));
+  return out;
+}
+function standings(){
+  const t = {A:{mw:0,ml:0,gw:0,gl:0,pf:0,pa:0}, B:{mw:0,ml:0,gw:0,gl:0,pf:0,pa:0}};
+  const pairStats = {}; const playerStats = {};
+  const bump = (id, k)=>{ (pairStats[id] ||= {w:0,l:0})[k]++; const pr = byId(S.pairs,id); (pr?.players||[]).forEach(pid=> (playerStats[pid] ||= {w:0,l:0})[k]++); };
+  for(const m of S.matches){
+    const r = matchResult(m);
+    for(const g of (m.games||[])){ const [a,b]=g.map(x=>+x||0); t.A.pf+=a; t.A.pa+=b; t.B.pf+=b; t.B.pa+=a; const w=gameWinner(g); if(w==="A"){t.A.gw++;t.B.gl++;} if(w==="B"){t.B.gw++;t.A.gl++;} }
+    if(r.winner==="A"){ t.A.mw++; t.B.ml++; bump(m.pairA,"w"); bump(m.pairB,"l"); }
+    if(r.winner==="B"){ t.B.mw++; t.A.ml++; bump(m.pairB,"w"); bump(m.pairA,"l"); }
+  }
+  return {t, pairStats, playerStats};
+}
+function expenseSummary(){
+  const total = S.expenses.reduce((s,e)=>s+(+e.amount||0),0);
+  const bal = {}; S.players.forEach(p=> bal[p.id]={paid:0, owes:0});
+  for(const e of S.expenses){
+    if(e.paidBy && bal[e.paidBy]) bal[e.paidBy].paid += +e.amount||0;
+    const group = S.players.filter(p => e.split==="all" || !e.split ? true : p.team===e.split);
+    if(group.length){ const share = (+e.amount||0)/group.length; group.forEach(p=> bal[p.id].owes += share); }
+  }
+  const perHead = S.players.length ? total/S.players.length : 0;
+  // settlement suggestions
+  const debt = Object.entries(bal).map(([id,b])=>({id, net:b.paid-b.owes})).filter(x=>Math.abs(x.net)>=1);
+  const cred = debt.filter(x=>x.net>0).sort((a,b)=>b.net-a.net), owe = debt.filter(x=>x.net<0).sort((a,b)=>a.net-b.net);
+  const transfers=[]; let i=0,j=0;
+  while(i<cred.length && j<owe.length){ const amt=Math.min(cred[i].net, -owe[j].net); transfers.push({from:owe[j].id, to:cred[i].id, amt}); cred[i].net-=amt; owe[j].net+=amt; if(cred[i].net<1) i++; if(owe[j].net>-1) j++; }
+  return {total, perHead, bal, transfers};
+}
+
+/* ---------------- Rendering ---------------- */
+const $ = s => document.querySelector(s);
+const view = $("#view");
+const ICONS = {
+  home:'<svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+  players:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5c3 0 5.5 2 5.5 5"/></svg>',
+  matches:'<svg viewBox="0 0 24 24"><path d="M4 20l6-6"/><ellipse cx="14.5" cy="9.5" rx="5.5" ry="6.5" transform="rotate(45 14.5 9.5)"/><path d="M11 13l7-7M9.5 11.5l7-7M12.5 15.5l7-7"/></svg>',
+  money:'<svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.8"/><path d="M6 12h.01M18 12h.01"/></svg>',
+  admin:'<svg viewBox="0 0 24 24"><path d="M12 2.5l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10v-6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  x:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  edit:'<svg viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16z"/></svg>',
+  camera:'<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>'
+};
+function avatar(p, cls=""){ const t=p?.team||""; return (p?.photo && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p.photo)) ? `<img class="avatar ${cls} ${t}" src="${p.photo}" alt="">` : `<div class="avatar ${cls} ${t}">${esc(initials(p))}</div>`; }
+
+function renderTabs(){
+  const tabs=[["home","Home"],["players","Players"],["matches","Matches"],["money","Money"]];
+  if(isAdmin()) tabs.push(["admin","Admin"]);
+  $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${S.tab===k?"page":"false"}">${ICONS[k]}${l}</button>`).join("");
+}
+function render(){
+  $("#hdrTitle").textContent = S.event.name || "Badminton challenge";
+  $("#hdrEyebrow").textContent = `${S.event.shortA} vs ${S.event.shortB} · ${fmtDate(S.event.date)}`;
+  const m = me(); $("#meBtn").innerHTML = m ? avatar(m,"sm") : `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+  renderTabs();
+  if(S.tab==="admin" && !isAdmin()) S.tab="home";
+  const fn = {home:vHome, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
+  view.innerHTML = fn();
+  view.scrollTop = S._scroll?.[S.tab] || 0;
+  renderDemoBar();
+}
+function renderDemoBar(){
+  const bar = $("#demoBar");
+  if(!isDemo){ bar.hidden = true; return; }
+  bar.hidden = false;
+  bar.innerHTML = `<span>Demo mode · data stays on this device</span><label class="check"><input type="checkbox" id="demoAdminToggle" ${S.demoAdmin?"checked":""}> Admin view</label>`;
+}
+
+/* ---- Home ---- */
+function vHome(){
+  const e=S.event, st=standings().t, m=me();
+  const nA=S.players.filter(p=>p.team==="A").length, nB=S.players.filter(p=>p.team==="B").length;
+  const pA=S.pairs.filter(p=>p.team==="A").length, pB=S.pairs.filter(p=>p.team==="B").length;
+  const done=S.matches.filter(x=>matchResult(x).done).length;
+  const target = new Date((e.date||"2027-01-03")+"T"+(e.time||"10:00")+":00");
+  const diff = target - Date.now(); const d=Math.max(0,Math.floor(diff/864e5)), h=Math.max(0,Math.floor(diff%864e5/36e5)), mi=Math.max(0,Math.floor(diff%36e5/6e4));
+  const next = S.matches.filter(x=>!matchResult(x).done).sort((a,b)=>a.order-b.order).slice(0,3);
+  const projected = projectFixtures();
+  return `
+  ${!m && !isDemo ? `<div class="banner info"><span class="grow">You're not registered yet.</span><button class="btn primary" data-act="register">Register</button></div>` : ""}
+  ${!m && isDemo ? `<div class="banner info"><span class="grow">Try the player side: register a test profile.</span><button class="btn primary" data-act="register">Register</button></div>` : ""}
+  <section class="hero">
+    <div class="meta"><span>${esc(fmtDate(e.date))}${e.time?" · "+esc(e.time):""}</span><span>${esc(e.venue)}</span></div>
+    <div class="vs">
+      <div class="team a"><span class="tname">${esc(e.teamA).replace("/","/<wbr>")}</span><span class="score">${st.A.mw}</span><span class="small muted">${nA} players · ${pA} pairs</span></div>
+      <span class="dash">–</span>
+      <div class="team b"><span class="tname">${esc(e.teamB).replace("/","/<wbr>")}</span><span class="score">${st.B.mw}</span><span class="small muted">${nB} players · ${pB} pairs</span></div>
+    </div>
+    ${diff>0 ? `<div class="countdown"><div><b>${d}</b><span>days</span></div><div><b>${h}</b><span>hours</span></div><div><b>${mi}</b><span>min</span></div></div>` : `<div class="pill live" style="justify-self:start">${done===S.matches.length&&S.matches.length?"Finished":"Match day"}</div>`}
+  </section>
+  <div class="stats">
+    <div class="stat"><b>${S.players.length}</b><span>Registered</span></div>
+    <div class="stat"><b>${S.matches.length||projected.total}</b><span>${S.matches.length?"Matches":"Projected"}</span></div>
+    <div class="stat"><b>${done}/${S.matches.length}</b><span>Played</span></div>
+  </div>
+  <section class="card stack">
+    <div class="sec-head"><h3>Format</h3><span class="pill">2 v 2 doubles</span></div>
+    <p class="lead" style="margin:0">${projectedText(projected)}</p>
+  </section>
+  ${next.length ? `<section class="stack"><div class="sec-head"><h3>Up next</h3><button class="btn ghost sm" data-act="tab" data-tab="matches">All matches</button></div>${next.map(matchCard).join("")}</section>` : ""}
+  ${S.matches.length ? `<section class="card stack"><h3>Standings</h3>${standingsTable()}</section>` : ""}`;
+}
+function projectFixtures(){
+  const pA = S.pairs.filter(p=>p.team==="A").length || Math.floor(S.players.filter(p=>p.team==="A").length/2);
+  const pB = S.pairs.filter(p=>p.team==="B").length || Math.floor(S.players.filter(p=>p.team==="B").length/2);
+  const legs = S.event.legs||1; const total = pA*pB*legs;
+  const courts = S.event.courts||1; const perRound = Math.min(pA,pB)||1; const rounds = total ? Math.max(pA,pB)*legs*Math.ceil(perRound/courts) : 0;
+  return {pA,pB,legs,total,rounds, perA:pB*legs, perB:pA*legs};
+}
+function projectedText(p){
+  if(!p.pA || !p.pB) return "Once both teams have at least 2 registered players, the app works out how many matches you need. Each pair from one team plays every pair of the other team.";
+  const fixed = S.pairs.length>0;
+  return `${fixed?"":"Based on registrations so far, "}${esc(S.event.shortA)} ${fixed?"has":"can field"} <b>${p.pA} pair${p.pA>1?"s":""}</b> and ${esc(S.event.shortB)} <b>${p.pB} pair${p.pB>1?"s":""}</b>, so the challenge is <b>${p.total} match${p.total>1?"es":""}</b>${p.legs>1?` (${p.legs} legs)`:""}: each ${esc(S.event.shortA)} pair plays ${p.perA}, each ${esc(S.event.shortB)} pair plays ${p.perB}. On ${S.event.courts} court${S.event.courts>1?"s":""} that is about ${p.rounds} round${p.rounds>1?"s":""}.`;
+}
+function standingsTable(){
+  const {t} = standings();
+  const row = (k)=>`<tr><td><span class="pill ${k}">${esc(teamShort(k))}</span> ${esc(teamName(k))}</td><td class="n">${t[k].mw}</td><td class="n">${t[k].ml}</td><td class="n">${t[k].gw}–${t[k].gl}</td><td class="n">${t[k].pf-t[k].pa>0?"+":""}${t[k].pf-t[k].pa}</td></tr>`;
+  return `<div class="scroll-x"><table class="table"><thead><tr><th>Team</th><th class="n">W</th><th class="n">L</th><th class="n">Games</th><th class="n">+/−</th></tr></thead><tbody>${row("A")}${row("B")}</tbody></table></div>`;
+}
+
+/* ---- Players ---- */
+function vPlayers(){
+  const {playerStats} = standings();
+  const list = (t)=>{
+    const ps = S.players.filter(p=>p.team===t).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    if(!ps.length) return `<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`;
+    return `<div class="list">${ps.map(p=>{ const s=playerStats[p.id]; const pr=S.pairs.find(x=>(x.players||[]).includes(p.id)); const a=age(p.dob);
+      return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</b><span>${a!=null?a+" yrs":""}${pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>`;
+  };
+  return `
+  <div class="seg" data-seg="filter"><button class="A" aria-pressed="${S.filter!=="B"}" data-val="A">${esc(S.event.shortA)} (${S.players.filter(p=>p.team==="A").length})</button><button class="B" aria-pressed="${S.filter==="B"}" data-val="B">${esc(S.event.shortB)} (${S.players.filter(p=>p.team==="B").length})</button></div>
+  ${list(S.filter==="B"?"B":"A")}
+  ${!me() ? `<button class="btn primary block" data-act="register">Register yourself</button>` : ""}`;
+}
+function sheetPlayer(id){
+  const p = byId(S.players,id); if(!p) return;
+  const {playerStats} = standings(); const s = playerStats[id]||{w:0,l:0};
+  const pr = S.pairs.find(x=>(x.players||[]).includes(id));
+  const mine = S.matches.filter(m=> pr && (m.pairA===pr.id||m.pairB===pr.id)).sort((a,b)=>a.order-b.order);
+  const a = age(p.dob);
+  openSheet(`${esc(fullName(p))}`, `
+    <div class="row" style="gap:16px">${avatar(p,"lg")}<div class="stack" style="gap:4px"><span class="pill ${p.team}">${esc(teamName(p.team))}</span><span class="muted">${a!=null?a+" years":""}${isAdmin()&&p.dob?` · born ${esc(fmtDate(p.dob))}`:""}</span><span class="muted small">${pr?`Pair: ${esc(pairLabel(pr))}`:"Not paired yet"}</span></div></div>
+    <div class="stats"><div class="stat"><b>${s.w}</b><span>Won</span></div><div class="stat"><b>${s.l}</b><span>Lost</span></div><div class="stat"><b>${mine.length}</b><span>Matches</span></div></div>
+    ${mine.length?`<div class="stack">${mine.map(matchCard).join("")}</div>`:""}
+  `, (p.id===uid || isAdmin()) ? `<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Remove</button>`:""}` : "");
+}
+
+/* ---- Matches ---- */
+function matchCard(m){
+  const r = matchResult(m); const pa=byId(S.pairs,m.pairA), pb=byId(S.pairs,m.pairB);
+  const myPair = S.pairs.find(x=>(x.players||[]).includes(uid));
+  const mine = myPair && (m.pairA===myPair.id || m.pairB===myPair.id);
+  const games = (m.games||[]).filter(g=>g && (g[0]!==""||g[1]!=="") );
+  const side = (k, pr)=>`<div class="side ${k} ${r.winner?(r.winner===k?"win":"lose"):""}"><div class="names"><span class="stripe"></span><span>${esc(pairLabel(pr))}</span>${r.winner===k?'<span class="pill good">W</span>':""}</div><div class="games">${games.map(g=>{const w=gameWinner(g); const v=k==="A"?g[0]:g[1]; return `<b class="${w?(w===k?"w":"l"):""}">${v===""||v==null?"·":v}</b>`;}).join("")}${m.walkover===k?'<b class="w">w/o</b>':""}</div></div>`;
+  const status = r.done ? `<span class="pill good">Final</span>` : games.length ? `<span class="pill live">Live</span>` : `<span class="pill">Court ${m.court||"?"}</span>`;
+  return `<button class="match ${mine?"mine":""}" data-act="match" data-id="${m.id}"><div class="hdr"><span>Round ${m.round||"?"}${m.leg>1?" · Leg "+m.leg:""}${mine?" · your match":""}</span>${status}</div>${side("A",pa)}${side("B",pb)}</button>`;
+}
+function vMatches(){
+  if(!S.matches.length){
+    const p = projectFixtures();
+    return `<div class="empty"><b>No fixtures yet</b>${isAdmin()?"Build the pairs in Admin, then generate the schedule.":"The organiser hasn't generated the schedule yet."}<br><span class="small">${projectedText(p).replace(/<[^>]+>/g,"")}</span></div>`;
+  }
+  const f = S.filterM||"all";
+  let ms = [...S.matches].sort((a,b)=>a.order-b.order);
+  const myPair = S.pairs.find(x=>(x.players||[]).includes(uid));
+  if(f==="mine" && myPair) ms = ms.filter(m=>m.pairA===myPair.id||m.pairB===myPair.id);
+  if(f==="open") ms = ms.filter(m=>!matchResult(m).done);
+  if(f==="done") ms = ms.filter(m=>matchResult(m).done);
+  const rounds = [...new Set(ms.map(m=>m.round))].sort((a,b)=>a-b);
+  return `
+  <section class="card stack">${standingsTable()}</section>
+  <div class="seg" data-seg="filterM">${[["all","All"],["open","To play"],["done","Played"]].concat(myPair?[["mine","Mine"]]:[]).map(([k,l])=>`<button aria-pressed="${f===k}" data-val="${k}">${l}</button>`).join("")}</div>
+  ${ms.length? rounds.map(r=>`<div class="round-h"><h3>Round ${r}</h3></div><div class="stack">${ms.filter(m=>m.round===r).map(matchCard).join("")}</div>`).join("") : `<div class="empty">Nothing here.</div>`}`;
+}
+function sheetMatch(id){
+  const m = byId(S.matches,id); if(!m) return;
+  const canScore = isAdmin() || (S.event.allowPlayerScores && me());
+  const pa=byId(S.pairs,m.pairA), pb=byId(S.pairs,m.pairB);
+  const bestOf = S.event.bestOf||3;
+  const games = Array.from({length:bestOf},(_,i)=> (m.games||[])[i] || ["",""]);
+  const r = matchResult(m);
+  const side = k => { const pr = k==="A"?pa:pb; return `<div class="stack" style="gap:6px"><span class="pill ${k}">${esc(teamShort(k))}</span><b style="font-family:var(--f-display);font-size:20px">${esc(pairLabel(pr))}</b><div class="row" style="gap:4px">${pairPlayers(pr).map(p=>avatar(p,"sm")).join("")}</div></div>`; };
+  const body = `
+    <div class="row spread" style="align-items:flex-start">${side("A")}${side("B")}</div>
+    <div class="row small muted"><span>Round ${m.round} · Court ${m.court}</span>${r.winner?`<span class="pill good">Winner: ${esc(pairLabel(r.winner==="A"?pa:pb))}</span>`:""}</div>
+    ${canScore ? `<form id="scoreForm" class="stack" style="gap:14px">
+      ${games.map((g,i)=>`<div class="stack" style="gap:6px"><div class="glabel">Game ${i+1} · to ${S.event.pointsTo||21}</div><div class="scorebox">
+        <div class="sc"><input inputmode="numeric" pattern="[0-9]*" id="gA${i}" name="a${i}" value="${g[0]}" placeholder="0" aria-label="Game ${i+1} ${esc(S.event.shortA)}"><div class="pm"><button type="button" data-pm="-" data-for="gA${i}" aria-label="minus">−</button><button type="button" data-pm="+" data-for="gA${i}" aria-label="plus">+</button></div></div>
+        <span class="muted">:</span>
+        <div class="sc"><input inputmode="numeric" pattern="[0-9]*" id="gB${i}" name="b${i}" value="${g[1]}" placeholder="0" aria-label="Game ${i+1} ${esc(S.event.shortB)}"><div class="pm"><button type="button" data-pm="-" data-for="gB${i}" aria-label="minus">−</button><button type="button" data-pm="+" data-for="gB${i}" aria-label="plus">+</button></div></div>
+      </div></div>`).join("")}
+      ${isAdmin()?`<div class="stack" style="gap:6px"><div class="glabel">Walkover</div><div class="seg"><button type="button" data-wo="" aria-pressed="${!m.walkover}">None</button><button type="button" class="A" data-wo="A" aria-pressed="${m.walkover==="A"}">${esc(S.event.shortA)} wins</button><button type="button" class="B" data-wo="B" aria-pressed="${m.walkover==="B"}">${esc(S.event.shortB)} wins</button></div></div>
+      <div class="row"><label class="f grow">Round<input type="number" id="mRound" min="1" value="${m.round}"></label><label class="f grow">Court<input type="number" id="mCourt" min="1" value="${m.court}"></label></div>`:""}
+    </form>` : `<div class="stack">${games.filter(g=>g[0]!==""||g[1]!=="").map((g,i)=>`<div class="row spread"><span class="muted">Game ${i+1}</span><span class="num" style="font-size:22px;font-weight:700">${g[0]||0} : ${g[1]||0}</span></div>`).join("") || `<div class="empty">Not played yet.</div>`}</div>`}`;
+  openSheet("Match", body, canScore ? `<button class="btn primary" data-act="saveScore" data-id="${id}">Save score</button>${isAdmin()?`<button class="btn danger" data-act="delMatch" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}` : "");
+  if(canScore){ S._wo = m.walkover||""; }
+}
+
+/* ---- Money ---- */
+function vMoney(){
+  const {total, perHead, bal, transfers} = expenseSummary();
+  const mine = me() ? bal[me().id] : null;
+  const list = [...S.expenses].sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.createdAt||0)-(a.createdAt||0));
+  return `
+  <div class="stats"><div class="stat"><b>${esc(money(total))}</b><span>Total</span></div><div class="stat"><b>${esc(money(Math.round(perHead)))}</b><span>Per head</span></div><div class="stat"><b class="balance ${mine?(mine.paid-mine.owes>=0?"pos":"neg"):""}">${mine?esc(money(Math.round(mine.paid-mine.owes))):"—"}</b><span>Your balance</span></div></div>
+  ${isAdmin()?`<button class="btn primary block" data-act="addExpense">Add expense</button>`:""}
+  <section class="stack"><div class="sec-head"><h3>Expenses</h3><span class="small muted">${S.expenses.length} item${S.expenses.length===1?"":"s"}</span></div>
+  ${list.length?`<div class="list">${list.map(e=>`<button class="item" data-act="expense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>${esc(e.category||"Other")} · paid by ${esc(fullName(byId(S.players,e.paidBy))||"team pot")}${e.split&&e.split!=="all"?" · split "+esc(teamShort(e.split)):""}</span></div><span class="amt">${esc(money(e.amount))}</span></button>`).join("")}</div>`:`<div class="empty"><b>No expenses yet</b>Court booking, shuttles and snacks go here. Everyone sees the total and their share.</div>`}</section>
+  ${S.players.length && S.expenses.length ? `<section class="card stack"><h3>Who owes what</h3><div class="scroll-x"><table class="table"><thead><tr><th>Player</th><th class="n">Paid</th><th class="n">Share</th><th class="n">Balance</th></tr></thead><tbody>
+    ${S.players.map(p=>{const b=bal[p.id]; const n=b.paid-b.owes; return `<tr><td>${esc(fullName(p))}</td><td class="n">${esc(money(Math.round(b.paid)))}</td><td class="n">${esc(money(Math.round(b.owes)))}</td><td class="n balance ${n>=0?"pos":"neg"}">${n>0?"+":""}${esc(money(Math.round(n)))}</td></tr>`;}).join("")}
+  </tbody></table></div>
+  ${transfers.length?`<h3>Settle up</h3><div class="stack" style="gap:6px">${transfers.map(t=>`<div class="row spread small"><span>${esc(fullName(byId(S.players,t.from)))} → ${esc(fullName(byId(S.players,t.to)))}</span><b class="num">${esc(money(Math.round(t.amt)))}</b></div>`).join("")}</div>`:""}
+  </section>`:""}`;
+}
+function sheetExpense(id){
+  const e = id ? byId(S.expenses,id) : {title:"", amount:0, paidBy:"", category:"Court", split:"all", date:new Date().toISOString().slice(0,10), note:""};
+  if(!e) return;
+  const cats = ["Court","Shuttles","Food & drinks","Transport","Prizes","Other"];
+  openSheet(id?"Edit expense":"Add expense", `<form id="expForm" class="stack">
+    <label class="f">What<input id="eTitle" required value="${esc(e.title)}" placeholder="Court hire 10–14h"></label>
+    <div class="row"><label class="f grow">Amount (${esc(S.event.currency||"€")})<input id="eAmount" required inputmode="decimal" value="${e.amount?(e.amount/100).toFixed(2):""}" placeholder="48.00"></label><label class="f grow">Date<input type="date" id="eDate" value="${esc(e.date||"")}"></label></div>
+    <label class="f">Category<select id="eCat">${cats.map(c=>`<option ${c===e.category?"selected":""}>${c}</option>`).join("")}</select></label>
+    <label class="f">Paid by<select id="ePaid"><option value="">Team pot / nobody yet</option>${S.players.map(p=>`<option value="${p.id}" ${p.id===e.paidBy?"selected":""}>${esc(fullName(p))} (${esc(teamShort(p.team))})</option>`).join("")}</select></label>
+    <label class="f">Split between<select id="eSplit"><option value="all" ${e.split==="all"||!e.split?"selected":""}>Everyone registered</option><option value="A" ${e.split==="A"?"selected":""}>${esc(S.event.teamA)} only</option><option value="B" ${e.split==="B"?"selected":""}>${esc(S.event.teamB)} only</option></select></label>
+    <label class="f">Note<textarea id="eNote">${esc(e.note||"")}</textarea></label>
+  </form>`, `<button class="btn primary" data-act="saveExpense" data-id="${id||""}">Save</button>${id?`<button class="btn danger" data-act="delExpense" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
+}
+
+/* ---- Admin ---- */
+function vAdmin(){
+  const e=S.event, proj=projectFixtures();
+  const unpaired = t => S.players.filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id)));
+  const pairsOf = t => S.pairs.filter(p=>p.team===t).sort((a,b)=>(a.order||0)-(b.order||0));
+  const hasScores = S.matches.some(m=>(m.games||[]).some(g=>g[0]!==""&&g[0]!=null) || m.walkover);
+  const pairCol = t => `<div class="stack" style="gap:8px"><div class="sec-head"><span class="pill ${t}">${esc(teamShort(t))}</span><span class="small muted">${pairsOf(t).length} pairs · ${unpaired(t).length} unpaired</span></div>
+    ${pairsOf(t).map((pr,i)=>`<div class="pairbox ${t}"><span class="pname">Pair ${i+1}</span>${pairPlayers(pr).map(p=>`<div class="p">${avatar(p,"sm")}<span>${esc(fullName(p))}</span></div>`).join("")}${pr.players?.length<2?`<span class="small muted">needs a partner</span>`:""}<button class="icon-btn x" data-act="delPair" data-id="${pr.id}" aria-label="Remove pair">${ICONS.x}</button></div>`).join("")}
+    ${unpaired(t).length?`<div class="chips">${unpaired(t).map(p=>`<button class="chip" data-act="pick" data-id="${p.id}" aria-pressed="${(S.pick||[]).includes(p.id)}">${avatar(p,"sm")}${esc(p.first)}</button>`).join("")}</div>`:""}
+    <div class="row"><button class="btn sm" data-act="autoPair" data-team="${t}" data-mode="random" ${unpaired(t).length<2?"disabled":""}>Random pairs</button><button class="btn sm" data-act="autoPair" data-team="${t}" data-mode="balanced" ${unpaired(t).length<2?"disabled":""}>Pair by age</button></div></div>`;
+  const picked = (S.pick||[]).map(id=>byId(S.players,id)).filter(Boolean);
+  return `
+  <section class="card stack">
+    <div class="sec-head"><h3>Event</h3><button class="btn sm" data-act="editEvent">Edit</button></div>
+    <div class="small"><b>${esc(e.name)}</b><br>${esc(fmtDate(e.date))}${e.time?" · "+esc(e.time):""} · ${esc(e.venue)}<br>${e.courts} court${e.courts>1?"s":""} · best of ${e.bestOf} to ${e.pointsTo} · ${e.legs} leg${e.legs>1?"s":""}</div>
+    <div class="row"><span class="pill ${e.registrationOpen?"good":"warn"}">Registration ${e.registrationOpen?"open":"closed"}</span><span class="pill ${e.allowPlayerScores?"good":""}">Players ${e.allowPlayerScores?"can":"can't"} enter scores</span></div>
+  </section>
+  <section class="card stack">
+    <div class="sec-head"><h3>Pairs</h3>${picked.length===2?`<button class="btn primary sm" data-act="makePair">Pair ${esc(picked[0].first)} + ${esc(picked[1].first)}</button>`:`<span class="small muted">${picked.length===1?"Tap a team-mate to pair":"Tap two names to pair them"}</span>`}</div>
+    <div class="pairgrid">${pairCol("A")}${pairCol("B")}</div>
+    ${S.pairs.length?`<button class="btn ghost sm danger" data-act="clearPairs">Clear all pairs</button>`:""}
+  </section>
+  <section class="card stack">
+    <div class="sec-head"><h3>Schedule</h3><span class="pill">${S.matches.length} matches</span></div>
+    <p class="small muted" style="margin:0">${projectedText(proj)}</p>
+    <div class="row">
+      <button class="btn primary" data-act="genFixtures" ${!proj.pA||!proj.pB||!S.pairs.length?"disabled":""}>${S.matches.length?"Regenerate":"Generate"} schedule</button>
+      <button class="btn" data-act="addMatch" ${S.pairs.length<2?"disabled":""}>Add match</button>
+      ${S.matches.length?`<button class="btn ghost danger" data-act="clearMatches">Clear</button>`:""}
+    </div>
+    ${hasScores?`<span class="small" style="color:var(--warn)">Scores exist. Regenerating or clearing removes them.</span>`:""}
+  </section>
+  <section class="card stack">
+    <div class="sec-head"><h3>Players</h3><button class="btn sm" data-act="addPlayer">Add manually</button></div>
+    <div class="small muted">${S.players.length} registered · ${S.players.filter(p=>p.team==="A").length} ${esc(e.shortA)} · ${S.players.filter(p=>p.team==="B").length} ${esc(e.shortB)}. Tap a player in the Players tab to edit, move or remove them.</div>
+  </section>
+  <section class="card stack">
+    <h3>Admins</h3>
+    ${isDemo?`<div class="small muted">In demo mode the “Admin view” switch at the top stands in for admin rights. Once connected to Firebase, the first person to open the app claims admin, then adds others here.</div>`:`
+    <div class="small">Your ID: <code class="uid">${esc(uid||"")}</code></div>
+    <div class="stack" style="gap:6px">${(S.admins?.uids||[]).map(u=>{const p=byId(S.players,u); return `<div class="row spread small"><span>${p?esc(fullName(p)):"Unregistered device"} <code class="uid">${esc(u.slice(0,8))}…</code></span>${u!==uid?`<button class="btn sm danger" data-act="rmAdmin" data-id="${u}">Remove</button>`:`<span class="pill">you</span>`}</div>`;}).join("")}</div>
+    <label class="f">Make a registered player admin<select id="newAdmin"><option value="">Choose…</option>${S.players.filter(p=>!(S.admins?.uids||[]).includes(p.id) && !p.manual).map(p=>`<option value="${p.id}">${esc(fullName(p))}</option>`).join("")}</select></label>
+    <button class="btn" data-act="addAdmin">Add admin</button>`}
+  </section>
+  ${isDemo?`<section class="card stack"><h3>Demo data</h3><div class="row"><button class="btn" data-act="seed">Load sample players</button><button class="btn danger" data-act="resetDemo">Reset everything</button></div></section>`:""}`;
+}
+function sheetEvent(){
+  const e=S.event;
+  openSheet("Event settings", `<form id="evForm" class="stack">
+    <label class="f">Event name<input id="evName" value="${esc(e.name)}" required></label>
+    <div class="row"><label class="f grow">Date<input type="date" id="evDate" value="${esc(e.date)}"></label><label class="f grow">Start time<input type="time" id="evTime" value="${esc(e.time||"")}"></label></div>
+    <label class="f">Venue<input id="evVenue" value="${esc(e.venue)}"></label>
+    <div class="row"><label class="f grow">Team A<input id="evTeamA" value="${esc(e.teamA)}"></label><label class="f" style="width:84px">Short<input id="evShortA" maxlength="4" value="${esc(e.shortA)}"></label></div>
+    <div class="row"><label class="f grow">Team B<input id="evTeamB" value="${esc(e.teamB)}"></label><label class="f" style="width:84px">Short<input id="evShortB" maxlength="4" value="${esc(e.shortB)}"></label></div>
+    <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
+    <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
+    <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>
+    <label class="check"><input type="checkbox" id="evReg" ${e.registrationOpen?"checked":""}> Registration open</label>
+    <label class="check"><input type="checkbox" id="evScores" ${e.allowPlayerScores?"checked":""}> Registered players may enter scores <span class="help">(otherwise admins only)</span></label>
+  </form>`, `<button class="btn primary" data-act="saveEvent">Save</button>`);
+}
+function sheetAddMatch(){
+  const opt = t => S.pairs.filter(p=>p.team===t).map(p=>`<option value="${p.id}">${esc(pairLabel(p))}</option>`).join("");
+  const maxRound = Math.max(0,...S.matches.map(m=>m.round||0));
+  openSheet("Add match", `<form class="stack" id="amForm"><label class="f">${esc(S.event.shortA)} pair<select id="amA">${opt("A")}</select></label><label class="f">${esc(S.event.shortB)} pair<select id="amB">${opt("B")}</select></label><div class="row"><label class="f grow">Round<input type="number" id="amRound" min="1" value="${maxRound+1}"></label><label class="f grow">Court<input type="number" id="amCourt" min="1" value="1"></label></div></form>`, `<button class="btn primary" data-act="saveNewMatch">Add</button>`);
+}
+
+/* ---- Register / edit profile ---- */
+function sheetProfile(id){
+  const p = id ? byId(S.players,id) : {first:"", last:"", dob:"", photo:"", team: S.players.filter(x=>x.team==="A").length <= S.players.filter(x=>x.team==="B").length ? "A":"B"};
+  if(!p) return;
+  const isNew = !id;
+  S._photo = p.photo||"";
+  if(isNew && !isDemo && S.event.registrationOpen===false && !isAdmin()){ openSheet("Registration closed", `<div class="empty"><b>Registration is closed</b>Ask the organiser if you still want to join.</div>`, ""); return; }
+  openSheet(isNew ? (S._adminAdd?"Add player":"Register") : "Edit profile", `<form id="profForm" class="stack">
+    ${isNew && !S._adminAdd ? `<p class="lead" style="margin:0">Your profile is visible to everyone in the challenge. Pick your team, add a photo so people recognise you on court.</p>`:""}
+    <div class="photo-pick"><div id="photoPreview">${S._photo?`<img class="avatar lg" src="${S._photo}" alt="">`:`<div class="avatar lg">${ICONS.camera.replace('<svg','<svg style="width:32px;height:32px;stroke:currentColor;fill:none;stroke-width:1.8"')}</div>`}</div>
+      <div class="stack" style="gap:6px"><label class="btn sm" for="photoInput">${S._photo?"Change photo":"Add photo"}<input type="file" id="photoInput" accept="image/*" capture="user"></label>${S._photo?`<button type="button" class="btn ghost sm" data-act="clearPhoto">Remove</button>`:""}<span class="help">Square crop, stored small.</span></div></div>
+    <div class="row"><label class="f grow">First name<input id="pFirst" required autocomplete="given-name" value="${esc(p.first)}"></label><label class="f grow">Last name<input id="pLast" required autocomplete="family-name" value="${esc(p.last)}"></label></div>
+    <label class="f">Date of birth<input type="date" id="pDob" value="${esc(p.dob||"")}" max="${new Date().toISOString().slice(0,10)}"><span class="help">Others see your age; the organiser sees the date.</span></label>
+    <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Team</span><div class="seg" id="teamSeg"><button type="button" class="A" data-team="A" aria-pressed="${p.team==="A"}">${esc(S.event.teamA)}</button><button type="button" class="B" data-team="B" aria-pressed="${p.team!=="A"}">${esc(S.event.teamB)}</button></div></div>
+  </form>`, `<button class="btn primary" data-act="saveProfile" data-id="${id||""}">${isNew?(S._adminAdd?"Add player":"Register"):"Save"}</button>`);
+  S._team = p.team;
+}
+async function shrinkPhoto(file){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+    const size=320, c=document.createElement("canvas"); c.width=c.height=size; const x=c.getContext("2d");
+    const s=Math.min(img.width,img.height); x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,size,size);
+    let q=0.82, out=c.toDataURL("image/jpeg",q); while(out.length>60000 && q>0.4){ q-=0.1; out=c.toDataURL("image/jpeg",q); }
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* ---------------- Sheet + toast helpers ---------------- */
+function openSheet(title, body, footer){
+  $("#sheetHost").innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sh"><h2>${esc(title)}</h2><button class="icon-btn" data-act="close" aria-label="Close">${ICONS.x}</button></div><div class="sb">${body}</div>${footer?`<div class="sf">${footer}</div>`:""}</div></div>`;
+  const first = $("#sheetHost input:not([type=file]), #sheetHost select"); if(first && window.innerWidth>700) first.focus();
+}
+function closeSheet(){ $("#sheetHost").innerHTML=""; S._adminAdd=false; render(); }
+let toastT; function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2200); }
+function confirmSheet(title, text, label, onYes){
+  openSheet(title, `<p style="margin:0">${text}</p>`, `<button class="btn" data-act="close">Cancel</button><button class="btn danger" id="confirmYes">${esc(label)}</button>`);
+  $("#confirmYes").onclick = async ()=>{ closeSheet(); await onYes(); };
+}
+const guard = async fn => { try { await fn(); } catch(e){ console.error(e); toast(e?.code==="permission-denied" ? "You don't have permission for that." : "Something went wrong: "+(e.message||e)); } };
+
+/* ---------------- Events ---------------- */
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act],[data-tab],[data-val],[data-pm],[data-wo],[data-team]");
+  if(!b) { if(e.target.id==="scrim") closeSheet(); return; }
+  const act = b.dataset.act;
+  if(b.closest("nav.tabs") && b.dataset.tab){ S._scroll = S._scroll||{}; S._scroll[S.tab]=view.scrollTop; S.tab=b.dataset.tab; render(); return; }
+  if(b.closest("[data-seg]")){ const key=b.closest("[data-seg]").dataset.seg; S[key]=b.dataset.val; render(); return; }
+  if(b.dataset.pm){ const inp=document.getElementById(b.dataset.for); let v=parseInt(inp.value||"0",10); v=Math.max(0,Math.min(30,v+(b.dataset.pm==="+"?1:-1))); inp.value=v; return; }
+  if(b.dataset.wo!=null && b.closest("#scoreForm")){ S._wo=b.dataset.wo; b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b)); return; }
+  if(b.dataset.team && b.closest("#teamSeg")){ S._team=b.dataset.team; b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b)); return; }
+  if(!act) return;
+  const id = b.dataset.id;
+  const A = {
+    close: closeSheet,
+    tab: ()=>{ S.tab=b.dataset.tab; render(); },
+    register: ()=> sheetProfile(null),
+    addPlayer: ()=>{ S._adminAdd=true; sheetProfile(null); },
+    player: ()=> sheetPlayer(id),
+    editPlayer: ()=> sheetProfile(id),
+    clearPhoto: ()=>{ S._photo=""; $("#photoPreview").innerHTML=`<div class="avatar lg">?</div>`; },
+    saveProfile: ()=> guard(async ()=>{
+      const f=$("#profForm"); if(!f.reportValidity()) return;
+      const first=$("#pFirst").value.trim(), last=$("#pLast").value.trim(), dob=$("#pDob").value;
+      const existing = id ? byId(S.players,id) : null;
+      const data = {first, last, dob, photo:S._photo||"", team:S._team||"A", updatedAt:Date.now()};
+      if(existing){ await store.update("players", id, data); toast("Profile saved"); }
+      else {
+        const newId = S._adminAdd ? store.newId() : uid;
+        await store.set("players", newId, {...data, manual: !!S._adminAdd, createdAt:Date.now()});
+        toast(S._adminAdd ? "Player added" : "You're registered!");
+      }
+      closeSheet(); render();
+    }),
+    delPlayer: ()=> confirmSheet("Remove player", `Remove <b>${esc(fullName(byId(S.players,id)))}</b> from the challenge? Any pair they're in is removed too.`, "Remove", async ()=>guard(async ()=>{
+      const prs = S.pairs.filter(p=>(p.players||[]).includes(id)); for(const pr of prs){ await store.remove("pairs", pr.id); } await store.remove("players", id); toast("Removed"); })),
+    match: ()=> sheetMatch(id),
+    saveScore: ()=> guard(async ()=>{
+      const bestOf=S.event.bestOf||3; const games=[];
+      for(let i=0;i<bestOf;i++){ const a=$("#gA"+i).value.trim(), b2=$("#gB"+i).value.trim(); if(a===""&&b2==="") continue; games.push([a===""?0:+a, b2===""?0:+b2]); }
+      const patch = {games, walkover:S._wo||null, updatedAt:Date.now(), updatedBy:uid||null};
+      if(isAdmin()){ patch.round=+$("#mRound").value||1; patch.court=+$("#mCourt").value||1; }
+      const r = matchResult({...byId(S.matches,id), ...patch}); patch.status = r.done?"done":(games.length?"live":"scheduled"); patch.winner = r.winner;
+      await store.update("matches", id, patch); closeSheet(); toast(r.done?"Final score saved":"Score saved"); }),
+    delMatch: ()=> confirmSheet("Delete match", "Delete this match from the schedule?", "Delete", ()=>guard(()=>store.remove("matches", id))),
+    addExpense: ()=> sheetExpense(null),
+    expense: ()=> isAdmin() ? sheetExpense(id) : null,
+    saveExpense: ()=> guard(async ()=>{
+      const f=$("#expForm"); if(!f.reportValidity()) return;
+      const amt=Math.round(parseFloat($("#eAmount").value.replace(",","."))*100); if(!(amt>=0)) { toast("Enter a valid amount"); return; }
+      const data={title:$("#eTitle").value.trim(), amount:amt, date:$("#eDate").value, category:$("#eCat").value, paidBy:$("#ePaid").value||null, split:$("#eSplit").value, note:$("#eNote").value.trim(), updatedAt:Date.now()};
+      if(id) await store.update("expenses", id, data); else await store.set("expenses", store.newId(), {...data, createdAt:Date.now()});
+      closeSheet(); toast("Expense saved"); }),
+    delExpense: ()=> confirmSheet("Delete expense", "Delete this expense?", "Delete", ()=>guard(async()=>{ await store.remove("expenses", id); closeSheet(); })),
+    editEvent: sheetEvent,
+    saveEvent: ()=> guard(async ()=>{
+      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked};
+      await store.set("settings","event",data); closeSheet(); toast("Event saved"); }),
+    pick: ()=>{ const p=byId(S.players,id); let pk=(S.pick||[]).filter(x=>byId(S.players,x)?.team===p.team); if(pk.includes(id)) pk=pk.filter(x=>x!==id); else pk.push(id); S.pick=pk.slice(-2); render(); },
+    makePair: ()=> guard(async ()=>{ const ps=(S.pick||[]).map(x=>byId(S.players,x)).filter(Boolean); if(ps.length!==2) return; await store.set("pairs", store.newId(), {team:ps[0].team, players:ps.map(p=>p.id), order:S.pairs.filter(p=>p.team===ps[0].team).length, createdAt:Date.now()}); S.pick=[]; toast("Pair created"); }),
+    delPair: ()=> guard(async ()=>{ const used=S.matches.some(m=>m.pairA===id||m.pairB===id); if(used){ confirmSheet("Pair is scheduled", "This pair has matches in the schedule. Removing it deletes those matches.", "Remove pair and matches", async ()=>{ for(const m of S.matches.filter(m=>m.pairA===id||m.pairB===id)) await store.remove("matches", m.id); await store.remove("pairs", id); }); } else await store.remove("pairs", id); }),
+    autoPair: ()=> guard(async ()=>{ const t=b.dataset.team; const free=S.players.filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id))); const groups=autoPairs(free, b.dataset.mode).filter(g=>g.length===2); let order=S.pairs.filter(p=>p.team===t).length; for(const g of groups){ await store.set("pairs", store.newId(), {team:t, players:g.map(p=>p.id), order:order++, createdAt:Date.now()}); } toast(`${groups.length} pair${groups.length===1?"":"s"} made${free.length%2?" · 1 player left over":""}`); }),
+    clearPairs: ()=> confirmSheet("Clear pairs", "Remove all pairs? The schedule is cleared too.", "Clear", ()=>guard(async ()=>{ await store.removeAll("matches"); await store.removeAll("pairs"); })),
+    genFixtures: ()=>{ const go = async ()=> guard(async ()=>{ const pa=S.pairs.filter(p=>p.team==="A"&&p.players?.length===2).sort((a,b)=>(a.order||0)-(b.order||0)), pb=S.pairs.filter(p=>p.team==="B"&&p.players?.length===2).sort((a,b)=>(a.order||0)-(b.order||0)); const fx=buildFixtures(pa,pb,S.event.legs||1,S.event.courts||1); await store.removeAll("matches"); for(const m of fx) await store.set("matches", store.newId(), {...m, createdAt:Date.now()}); toast(`${fx.length} matches scheduled`); S.tab="matches"; render(); });
+      if(S.matches.length) confirmSheet("Regenerate schedule", `This replaces the current ${S.matches.length} matches and any scores entered.`, "Regenerate", go); else go(); },
+    clearMatches: ()=> confirmSheet("Clear schedule", "Delete all matches and scores?", "Clear", ()=>guard(()=>store.removeAll("matches"))),
+    addMatch: sheetAddMatch,
+    saveNewMatch: ()=> guard(async ()=>{ await store.set("matches", store.newId(), {pairA:$("#amA").value, pairB:$("#amB").value, round:+$("#amRound").value||1, court:+$("#amCourt").value||1, leg:1, order:S.matches.length, games:[], walkover:null, status:"scheduled", createdAt:Date.now()}); closeSheet(); toast("Match added"); }),
+    addAdmin: ()=> guard(async ()=>{ const v=$("#newAdmin").value; if(!v) return; await store.update("settings","admins",{uids:[...new Set([...(S.admins?.uids||[]), v])]}); toast("Admin added"); }),
+    rmAdmin: ()=> guard(async ()=>{ await store.update("settings","admins",{uids:(S.admins?.uids||[]).filter(u=>u!==id)}); }),
+    claimAdmin: ()=> guard(async ()=>{ await store.set("settings","admins",{uids:[uid], createdAt:Date.now()}); toast("You're the admin"); }),
+    seed: ()=> guard(seedDemo),
+    resetDemo: ()=> confirmSheet("Reset demo", "Delete all demo data on this device?", "Reset", ()=>store.reset()),
+  };
+  A[act]?.();
+});
+document.addEventListener("change", async e => {
+  if(e.target.id==="photoInput" && e.target.files[0]){ try{ S._photo = await shrinkPhoto(e.target.files[0]); $("#photoPreview").innerHTML=`<img class="avatar lg" src="${S._photo}" alt="">`; }catch(err){ toast("Couldn't read that image"); } }
+  if(e.target.id==="demoAdminToggle"){ S.demoAdmin=e.target.checked; lsSet("ppc_demo_admin", S.demoAdmin); render(); }
+});
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
+$("#meBtn").addEventListener("click", ()=>{ const m=me(); m ? sheetPlayer(m.id) : sheetProfile(null); });
+document.addEventListener("submit", e=> e.preventDefault());
+
+/* ---------------- Demo seed ---------------- */
+async function seedDemo(){
+  const A=[["Jonas","Weber","1994-03-12"],["Mira","Hoffmann","1989-11-02"],["Tarek","Aydin","1998-07-21"],["Lena","Schulz","1992-01-15"],["Arjun","Mehta","2001-05-08"],["Felix","Brandt","1985-09-30"]];
+  const B=[["Sophie","Krüger","1996-04-04"],["Ole","Petersen","1990-12-19"],["Aylin","Demir","1999-08-11"],["Max","Lehmann","1987-06-23"],["Nina","Vogel","1993-10-05"]];
+  for(const [f,l,d] of A) await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"A",photo:"",manual:true,createdAt:Date.now()});
+  for(const [f,l,d] of B) await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"B",photo:"",manual:true,createdAt:Date.now()});
+  await store.set("expenses", store.newId(), {title:"Court hire 10–14h", amount:9600, date:"2027-01-03", category:"Court", paidBy:null, split:"all", createdAt:Date.now()});
+  await store.set("expenses", store.newId(), {title:"Shuttles (2 tubes)", amount:4200, date:"2026-12-28", category:"Shuttles", paidBy:S.players[0]?.id||null, split:"all", createdAt:Date.now()});
+  toast("Sample data loaded");
+}
+
+/* ---------------- Boot ---------------- */
+async function boot(){
+  view.innerHTML = `<div class="empty"><b>Loading…</b>Connecting to the challenge.</div>`;
+  try{
+    if(isDemo){ store = makeDemoStore(); uid = lsGet(uidKey()) || (lsSet(uidKey(), rnd()), lsGet(uidKey())); }
+    else store = await makeFirebaseStore();
+  }catch(e){ console.error(e); view.innerHTML = `<div class="empty"><b>Can't connect</b>${esc(e.message||e)}<br><span class="small">Check the Firebase config and that Anonymous sign-in is enabled.</span></div>`; return; }
+  let first = true;
+  const ready = {};
+  const sub = (c, fn)=> store.subscribe(c, rows => { fn(rows); ready[c]=true; if(Object.keys(ready).length>=5 || !first) { first=false; if(!$("#sheetHost").children.length) render(); else renderTabs(); } });
+  sub("settings", rows => { const ev=rows.find(r=>r.id==="event"); S.event = {...DEFAULT_EVENT, ...(ev||{})}; delete S.event.id; S.admins = rows.find(r=>r.id==="admins")||null; S.adminsLoaded=true; });
+  sub("players", rows => S.players = rows);
+  sub("pairs", rows => S.pairs = rows);
+  sub("matches", rows => S.matches = rows);
+  sub("expenses", rows => S.expenses = rows);
+  setTimeout(()=>{ if(first){ first=false; render(); } }, 3000);
+  setInterval(()=>{ if(S.tab==="home" && !$("#sheetHost").children.length) render(); }, 60000);
+  if("serviceWorker" in navigator && !isDemo && location.protocol==="https:"){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+}
+// Admin bootstrap banner (Firebase only): first opener can claim admin when no admins doc exists.
+const _render = render; render = function(){ _render(); if(!isDemo && S.adminsLoaded && !S.admins && S.tab==="home"){ view.insertAdjacentHTML("afterbegin", `<div class="banner"><span class="grow">No organiser yet. Are you setting this up?</span><button class="btn primary" data-act="claimAdmin">Claim admin</button></div>`); } };
+boot();
+</script>
+
+</body>
+</html>

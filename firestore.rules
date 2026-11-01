@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function adminsDoc() { return /databases/$(db)/documents/settings/admins; }
+    function isAdmin() {
+      return signedIn() && exists(adminsDoc()) && (request.auth.uid in get(adminsDoc()).data.uids);
+    }
+    function eventDoc() { return /databases/$(db)/documents/settings/event; }
+    function registrationOpen() {
+      return !exists(eventDoc()) || !("registrationOpen" in get(eventDoc()).data) || get(eventDoc()).data.registrationOpen == true;
+    }
+    function playerScoresAllowed() {
+      return exists(eventDoc()) && get(eventDoc()).data.allowPlayerScores == true;
+    }
+    function validPlayer(d) {
+      return d.first is string && d.first.size() > 0 && d.first.size() <= 40
+        && d.last is string && d.last.size() <= 40
+        && d.team in ["A", "B"]
+        && (!("dob" in d) || d.dob is string)
+        && (!("photo" in d) || (d.photo is string && d.photo.size() <= 90000));
+    }
+
+    // Event settings: everyone reads, admins write.
+    match /settings/event {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Admin list: the first signed-in person to open the app claims it; after that only admins change it.
+    match /settings/admins {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uids == [request.auth.uid];
+      allow update, delete: if isAdmin() && request.auth.uid in request.resource.data.uids;
+    }
+
+    // Players: each device registers itself (doc id == its uid) while registration is open; admins manage everyone.
+    match /players/{pid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validPlayer(request.resource.data)
+                    && ((request.auth.uid == pid && registrationOpen()) || isAdmin());
+      allow update: if signedIn() && validPlayer(request.resource.data)
+                    && (request.auth.uid == pid || isAdmin());
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == pid);
+    }
+
+    // Pairs and schedule: admins only.
+    match /pairs/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Matches: admins write; registered players may enter scores if the admin switched that on.
+    match /matches/{id} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (signedIn() && playerScoresAllowed()
+            && exists(/databases/$(db)/documents/players/$(request.auth.uid))
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(["games", "walkover", "status", "winner", "updatedAt", "updatedBy"])
+            && request.resource.data.walkover == resource.data.walkover);
+    }
+
+    // Expenses: everyone sees them, admins manage them.
+    match /expenses/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
