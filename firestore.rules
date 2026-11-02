@@ -77,6 +77,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
     }
 
+    // Events (the challenge and any other event the admins create): everyone reads, admins write.
+    match /events/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     // Team settings (regular session day/time/place): admins or that team's members.
     match /teams/{t} {
       allow read: if signedIn();

@@ -122,6 +122,14 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
   split across everyone or one team. Everyone sees the total, their own share and
   balance, and a "settle up" list of who pays whom.
 
+## Events
+
+Home lists all events. The challenge is one of them; admins create more with **New event**
+(Home or Admin → Event → New): name, type (challenge / tournament / social / training camp),
+date, venue, courts, match format. Tap an event to select it — pairs, schedule, scores and
+challenge-day costs are kept per event. Admin → Event → Edit changes the selected event
+(and the global team names / scoring options); Delete removes an event with its schedule.
+
 ## Weekly team sessions, votes, reminders and team money
 
 - **Sessions tab**: each team sets its regular slot (day, time, place) under "Regular session".
