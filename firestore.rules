@@ -21,6 +21,14 @@ service cloud.firestore {
       return isMember() && exists(/databases/$(db)/documents/events/$(eventId))
         && myTeam() in get(/databases/$(db)/documents/events/$(eventId)).data.clubs;
     }
+    function inviteDoc(code) { return /databases/$(db)/documents/invites/$(code); }
+    // A registration with an invite code is allowed when the code exists, is for that club, hasn't expired and has uses left.
+    function validInvite(d) {
+      return "invite" in d && d.invite is string && exists(inviteDoc(d.invite))
+        && get(inviteDoc(d.invite)).data.team == d.team
+        && get(inviteDoc(d.invite)).data.expiresAt > request.time.toMillis()
+        && get(inviteDoc(d.invite)).data.used.size() < get(inviteDoc(d.invite)).data.maxUses;
+    }
     function validPlayer(d) {
       return d.first is string && d.first.size() > 0 && d.first.size() <= 40
         && d.last is string && d.last.size() <= 40
@@ -49,9 +57,12 @@ service cloud.firestore {
     match /players/{pid} {
       allow read: if signedIn();
       allow create: if signedIn() && validPlayer(request.resource.data)
-                    && ((request.auth.uid == pid && registrationOpen()) || isAdmin());
+                    && ((request.auth.uid == pid && (registrationOpen() || validInvite(request.resource.data))) || isAdmin())
+                    && (isAdmin() || !("canInvite" in request.resource.data));
+      // A player edits their own profile but cannot grant themselves invite rights or upgrade from guest; admins can do everything.
       allow update: if signedIn() && validPlayer(request.resource.data)
-                    && (request.auth.uid == pid || isAdmin());
+                    && (isAdmin() || (request.auth.uid == pid
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["canInvite", "guest", "sessionOnly", "invite"])));
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == pid);
     }
 
@@ -101,6 +112,24 @@ service cloud.firestore {
       allow read: if isAdmin() || (isMember() && resource.data.team == myTeam());
       allow create, update: if isAdmin() || (isMember() && request.resource.data.team == myTeam());
       allow delete: if isAdmin();
+    }
+
+    // Invites: created by admins or members with invite rights (for their own club); anyone signed in can look one up by code;
+    // a registering person appends their own uid to "used"; the creator or an admin can delete.
+    match /invites/{code} {
+      allow read: if signedIn();
+      allow create: if (isAdmin() || (isMember() && get(/databases/$(db)/documents/players/$(request.auth.uid)).data.canInvite == true
+                                      && request.resource.data.team == myTeam()))
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.team in ["A", "B"]
+                    && request.resource.data.kind in ["member", "guest", "session"]
+                    && request.resource.data.maxUses is int && request.resource.data.maxUses >= 1 && request.resource.data.maxUses <= 50
+                    && request.resource.data.used == [];
+      allow update: if signedIn()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["used", "updatedAt"])
+                    && request.resource.data.used == resource.data.used.concat([request.auth.uid])
+                    && resource.data.used.size() < resource.data.maxUses;
+      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
     }
 
     // Push notification tokens: each device writes its own; only admins (and the reminder job) read them.
