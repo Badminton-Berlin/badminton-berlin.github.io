@@ -1,7 +1,7 @@
 {
   "name": "Badminton Berlin",
   "short_name": "Badminton",
-  "description": "LL vs SP badminton challenge: registration, pairs, schedule, scores and expenses.",
+  "description": "LL vs SP badminton challenge: registration, pairs, schedule, scores and expenses. Developed by HM.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
