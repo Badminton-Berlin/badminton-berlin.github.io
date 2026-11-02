@@ -4,7 +4,7 @@
 // Needs the FIREBASE_SERVICE_ACCOUNT secret (service-account JSON from Firebase → Project settings → Service accounts).
 import admin from "firebase-admin";
 
-const APP_URL = process.env.APP_URL || "https://hiteshmalhotra2583.github.io/badminton-challenge/";
+const APP_URL = process.env.APP_URL || "https://badminton-berlin.github.io/";
 const TZ = "Europe/Berlin";
 const FORCE = String(process.env.FORCE || "").toLowerCase() === "true";
 const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];

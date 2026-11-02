@@ -5,7 +5,7 @@
 <section class="cover">
   <div><div class="eyebrow">Badminton Berlin · Admin guide</div><h1>Run the clubs and the challenge from one screen</h1>
   <p class="sub">Setting up, inviting people, organising events, pairs and schedules, keeping score, money, reminders — and what to do when something goes wrong.</p></div>
-  <div style="display:flex;justify-content:space-between;align-items:flex-end"><div class="meta">Lichtenrade/Lankwitz · Spandau/Staaken<br>App: hiteshmalhotra2583.github.io/badminton-challenge<br>Version November 2026</div><img class="logo" src="../icons/icon-512.png" alt=""></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end"><div class="meta">Lichtenrade/Lankwitz · Spandau/Staaken<br>App: badminton-berlin.github.io<br>Version November 2026</div><img class="logo" src="../icons/icon-512.png" alt=""></div>
 </section>
 
 <h2>Contents</h2>
@@ -142,7 +142,7 @@
 
 <h2>10. Behind the scenes</h2>
 <table><tr><th>Piece</th><th>Where</th><th>Notes</th></tr>
-<tr><td>App files</td><td>GitHub repo <code>hiteshmalhotra2583/badminton-challenge</code></td><td>Every push to <code>main</code> redeploys the site (GitHub Pages) within ~1 minute.</td></tr>
+<tr><td>App files</td><td>GitHub repo <code>Badminton-Berlin/badminton-berlin.github.io</code></td><td>Every push to <code>main</code> redeploys the site (GitHub Pages) within ~1 minute.</td></tr>
 <tr><td>Database</td><td>Firebase project <code>preussenpark-challenge</code> (Firestore, eur3)</td><td>Free tier; data visible and editable in the Firebase console. Security rules live in <code>firestore.rules</code> and are published in the console's Rules tab.</td></tr>
 <tr><td>Sign-in</td><td>Firebase Authentication: Anonymous + Google</td><td>Each phone gets an ID on first open; profiles and admin rights hang on that ID. Linking Google keeps the same ID, so it can be restored on another device.</td></tr>
 <tr><td>Notifications</td><td>GitHub Actions <code>notify.yml</code> + <code>scripts/notify.mjs</code> (hourly: new-member alerts; 07:00 Berlin: session reminder)</td><td>Needs secret <code>FIREBASE_SERVICE_ACCOUNT</code>: Firebase → Project settings → Service accounts → Generate new private key → paste the JSON into GitHub → Settings → Secrets and variables → Actions.</td></tr>

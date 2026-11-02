@@ -22,7 +22,7 @@ useful for trying it out, not for the real event.
 
 > **Status (2 Nov 2026):** done. Firebase project `preussenpark-challenge` (Firestore in eur3,
 > Anonymous sign-in, rules published, GitHub Pages domain authorised) and the config is in
-> `index.html`. The live app is https://hiteshmalhotra2583.github.io/badminton-challenge/ .
+> `index.html`. The live app is https://badminton-berlin.github.io/ .
 > Steps 1–3 below are only needed again for a new event/project.
 
 ## Step 1 — Create the Firebase project (5 min)

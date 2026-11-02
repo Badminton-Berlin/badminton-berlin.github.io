@@ -283,7 +283,7 @@ const POSTER="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAAFACAMAAAD6TlWY
 const safeImg = v => (typeof v==="string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) ? v : null;
 const eventLogo = ev => safeImg(ev?.logo) || (ev?.id==="main" && ev?.logo!=="" ? POSTER : null);
 // Links to the guides, relative to wherever the app is hosted (works on any domain).
-const DOCS_BASE = (isDemoHost => isDemoHost ? "https://hiteshmalhotra2583.github.io/badminton-challenge/docs/" : location.origin + location.pathname.replace(/[^/]*$/,"") + "docs/")(location.protocol==="file:" || /claude\.ai|claudeusercontent/.test(location.host));
+const DOCS_BASE = (isDemoHost => isDemoHost ? "https://badminton-berlin.github.io/docs/" : location.origin + location.pathname.replace(/[^/]*$/,"") + "docs/")(location.protocol==="file:" || /claude\.ai|claudeusercontent/.test(location.host));
 const CREDIT = `<div class="tiny muted" style="text-align:center;padding:14px 0 6px;letter-spacing:.04em">Developed by HM</div>`;
 function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function allEvents(){ if(S.events.length) return S.events; if(!isAdmin() && !isDemo) return []; return [{id:"main", type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT,EVENT_KEYS), ...pick(S.settingsEvent||{},EVENT_KEYS), virtual:true}]; }
