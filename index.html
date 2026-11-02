@@ -338,7 +338,13 @@ async function makeFirebaseStore(){
   try { fs.enableIndexedDbPersistence && await fs.enableIndexedDbPersistence(db); } catch(e){}
   const strip = d => JSON.parse(JSON.stringify(d));
   return {
-    subscribe(c, fn, filter){ let q=fs.collection(db,c); if(filter){ q = filter.id ? fs.query(q, fs.where(fs.documentId(),"==",filter.id)) : fs.query(q, fs.where(filter.field, filter.op, filter.value)); } return fs.onSnapshot(q, snap => fn(snap.docs.map(d=>({id:d.id, ...d.data()}))), err => { console.error(err); toast("Could not load "+c+": "+err.code); }); },
+    subscribe(c, fn, filter){
+      let q=fs.collection(db,c); if(filter){ q = filter.id ? fs.query(q, fs.where(fs.documentId(),"==",filter.id)) : fs.query(q, fs.where(filter.field, filter.op, filter.value)); }
+      // A listener that is refused (e.g. opened a moment before the server stored the registration) is retried instead of left dead.
+      let unsub=null, stopped=false, attempt=0;
+      const start=()=>{ unsub=fs.onSnapshot(q, snap => { attempt=0; fn(snap.docs.map(d=>({id:d.id, ...d.data()}))); }, err => { console.warn("listen", c, err.code); if(stopped) return; if(err.code==="permission-denied" && attempt<8){ attempt++; setTimeout(()=>{ if(!stopped) start(); }, 1200*attempt); } else toast("Could not load "+c+": "+err.code); }); };
+      start(); return ()=>{ stopped=true; if(unsub) unsub(); };
+    },
     set:(c,id,d)=> fs.setDoc(fs.doc(db,c,id), strip(d)),
     update:(c,id,p)=> fs.setDoc(fs.doc(db,c,id), strip(p), {merge:true}),
     remove:(c,id)=> fs.deleteDoc(fs.doc(db,c,id)),
