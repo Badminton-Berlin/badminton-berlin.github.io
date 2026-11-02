@@ -211,6 +211,9 @@ label.f textarea{min-height:70px;resize:vertical}
 .demo .check input{width:16px;height:16px}
 code.uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--surface-2);padding:3px 6px;border-radius:6px;overflow-wrap:anywhere}
 .lead{font-size:15px;color:var(--muted);max-width:60ch}
+.map{height:170px;border-radius:12px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
+.map:empty{display:none}
+a.lnk{color:var(--accent);font-weight:600;text-decoration:none}
 </style>
 
 <div id="app">
@@ -221,7 +224,7 @@ code.uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
       <div class="eyebrow" id="hdrEyebrow">Badminton challenge</div>
       <h1 id="hdrTitle" style="font-size:24px">Preussenpark Challenge</h1>
     </div>
-    <div class="actions"><button class="icon-btn" data-act="rules" title="Rules" aria-label="Rules"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg></button>
+    <div class="actions"><button class="icon-btn" data-act="clubRules" title="Club rules" aria-label="Club rules"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg></button>
     <button class="icon-btn" id="meBtn" title="My profile" aria-label="My profile">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
     </button></div>
@@ -568,8 +571,8 @@ function vHome(){
   // team rules / regular session
   let rulesCard="";
   if(m){ const cfg=teamCfg(m.team);
-    rulesCard=`<section class="card stack"><div class="sec-head"><h3>${esc(teamName(m.team))}</h3><span class="row" style="gap:6px;flex-wrap:nowrap;flex:none"><button class="btn ghost sm" data-act="rules">Game rules</button><button class="btn ghost sm" data-act="editTeamCfg" data-team="${m.team}">Edit</button></span></div>
-      ${cfg.enabled?`<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br><span class="muted small">${esc(cfg.location||"")}${cfg.address?" · "+esc(cfg.address):""}</span></div>`:`<div class="small muted">No regular session set.</div>`}
+    rulesCard=`<section class="card stack"><div class="sec-head"><h3>${esc(teamName(m.team))}</h3><span class="row" style="gap:6px;flex-wrap:nowrap;flex:none"><button class="btn ghost sm" data-act="clubRules">Club rules</button><button class="btn ghost sm" data-act="editTeamCfg" data-team="${m.team}">Edit</button></span></div>
+      ${cfg.enabled?`<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br>${placeLine(cfg)}</div>`:`<div class="small muted">No regular session set.</div>`}
       ${cfg.rules?`<div class="small" style="white-space:pre-wrap">${esc(cfg.rules)}</div>`:`<div class="small muted">No team rules yet — add things like court fee, shuttle type, who books, cancellation deadline.</div>`}
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
@@ -957,7 +960,7 @@ async function ensureNextSessions(){
     const date=nextSessionDate(cfg), id=`${t}_${date}`;
     if(S.sessions.some(s=>s.id===id) || S._ensured?.[id]) continue;
     (S._ensured ||= {})[id]=1;
-    try{ await store.set("sessions", id, {team:t, date, start:cfg.start, end:cfg.end, location:cfg.location||"", address:cfg.address||"", note:"", rsvps:{}, attended:null, status:"open", auto:true, createdAt:Date.now(), createdBy:uid||null}); }catch(e){ console.warn(e); }
+    try{ await store.set("sessions", id, {team:t, date, start:cfg.start, end:cfg.end, location:cfg.location||"", address:cfg.address||"", lat:cfg.lat??null, lon:cfg.lon??null, note:"", rsvps:{}, attended:null, status:"open", auto:true, createdAt:Date.now(), createdBy:uid||null}); }catch(e){ console.warn(e); }
   }
 }
 function teamMoney(t){
@@ -975,6 +978,7 @@ function teamMoney(t){
 
 /* ---- Sessions tab ---- */
 function vSessions(){
+  setTimeout(()=>{ ["A","B"].forEach(x=>{ const c=teamCfg(x); if(c.lat!=null && document.getElementById("teamMap"+x)) showMap("teamMap"+x, c.lat, c.lon); }); }, 50);
   if(!isAdmin() && !myTeam()) return `<div class="empty"><b>Register first</b>Sessions, votes and costs belong to your club. Register to see yours.</div>${isDemo||!me()?`<button class="btn primary block" data-act="register">Register</button>`:""}`;
   const t = isAdmin() ? (S.filterS || myTeam() || "A") : myTeam(); const cfg=teamCfg(t); const member=canManageTeam(t);
   const today=localISO(new Date());
@@ -989,7 +993,7 @@ function vSessions(){
   ${isAdmin()?`<div class="seg" data-seg="filterS"><button class="A" aria-pressed="${t==="A"}" data-val="A">${esc(S.event.teamA)}</button><button class="B" aria-pressed="${t==="B"}" data-val="B">${esc(S.event.teamB)}</button></div>`:""}
   <section class="card stack">
     <div class="sec-head"><h3>${esc(teamName(t))} · regular session</h3>${member?`<button class="btn sm" data-act="editTeamCfg" data-team="${t}">Edit</button>`:""}</div>
-    ${cfg.enabled ? `<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br><span class="muted">${esc(cfg.location||"Location not set")}${cfg.address?" · "+esc(cfg.address):""}</span>${cfg.note?`<br><span class="small muted">${esc(cfg.note)}</span>`:""}</div>
+    ${cfg.enabled ? `<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br>${placeLine(cfg)||'<span class="muted">Location not set</span>'}${cfg.note?`<br><span class="small muted">${esc(cfg.note)}</span>`:""}</div>${cfg.lat!=null?`<div class="map" id="teamMap${t}"></div>`:""}
       ${cfg.rules?`<div class="small" style="white-space:pre-wrap">${esc(cfg.rules)}</div>`:""}
       <div class="small muted">Vote reminder: ${WEEKDAYS[cfg.voteDay??5]} morning. The next session is created automatically.</div>`
       : `<div class="small muted">${member?"Set when and where "+esc(teamName(t))+" plays each week. The app then creates each session, collects votes and tracks the cost.":esc(teamName(t))+" hasn't set a regular session yet."}</div>`}
@@ -1007,7 +1011,7 @@ function sessionCard(s, full){
   const cost=S.expenses.filter(e=>e.sessionId===s.id&&e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0);
   const canVote = member && me();
   return `<section class="card stack" data-session="${s.id}">
-    <div class="sec-head"><div><b style="font-family:var(--f-display);font-size:20px">${esc(fmtDay(s.date))}</b><br><span class="muted small">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</span></div><span class="pill ${t}">${esc(teamShort(t))}</span></div>
+    <div class="sec-head"><div><b style="font-family:var(--f-display);font-size:20px">${esc(fmtDay(s.date))}</b><br><span class="muted small">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</span>${(s.address||s.location)?` <a class="lnk small" href="${mapsLink(s.lat,s.lon,[s.location,s.address].filter(Boolean).join(", "))}" target="_blank" rel="noopener">Directions ↗</a>`:""}</div><span class="pill ${t}">${esc(teamShort(t))}</span></div>
     ${s.note?`<div class="small">${esc(s.note)}</div>`:""}
     ${canVote?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${mine==="yes"}" data-val="yes">Yes (${rsvpCount(s,"yes")})</button><button aria-pressed="${mine==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${mine==="no"}" data-val="no">No (${rsvpCount(s,"no")})</button></div>`
       :`<div class="row small muted"><span>Yes ${rsvpCount(s,"yes")}</span><span>Maybe ${rsvpCount(s,"maybe")}</span><span>No ${rsvpCount(s,"no")}</span></div>`}
@@ -1026,29 +1030,36 @@ function sheetSession(id){
   </div>`, member?`<button class="btn" data-act="attendance" data-id="${id}">Who played</button><button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
 }
 function sheetTeamCfg(t){
-  const c=teamCfg(t);
+  const c=teamCfg(t); S._geo = c.lat!=null ? {lat:c.lat, lon:c.lon} : null;
   openSheet(`${teamName(t)} · regular session`, `<form id="cfgForm" class="stack">
     <label class="check"><input type="checkbox" id="cEnabled" ${c.enabled?"checked":""}> We play every week</label>
     <div class="row"><label class="f grow">Day<select id="cDay">${WEEKDAYS.map((d,i)=>`<option value="${i}" ${+c.weekday===i?"selected":""}>${d}</option>`).join("")}</select></label></div>
     <div class="row"><label class="f grow">From<input type="time" id="cStart" value="${esc(c.start||"08:30")}"></label><label class="f grow">To<input type="time" id="cEnd" value="${esc(c.end||"09:30")}"></label></div>
     <label class="f">Where<input id="cLoc" value="${esc(c.location||"")}" placeholder="Sporthalle Spandau, court 2"></label>
-    <label class="f">Address<input id="cAddr" value="${esc(c.address||"")}" placeholder="Street, Berlin"></label>
+    <label class="f">Address<input id="cAddr" value="${esc(c.address||"")}" placeholder="Askanierring 150, 13585 Berlin"></label>
+    <div class="row"><button type="button" class="btn sm" data-act="geoTeam">Find on map</button><span class="tiny muted" id="cfgMapLabel">${c.lat!=null?"Pin set — drag to adjust":"Shows a map and gives players a directions link"}</span></div>
+    <div class="map" id="cfgMap"></div>
     <label class="f">Send the "who's coming?" reminder on<select id="cVote">${WEEKDAYS.map((d,i)=>`<option value="${i}" ${(+c.voteDay??5)===i?"selected":""}>${d} morning</option>`).join("")}</select></label>
     <label class="f">Team rules (shown on Home)<textarea id="cRules" placeholder="Court €24 booked by whoever is first; everyone who plays splits it. Nylon shuttles. Cancel by Saturday 20:00.">${esc(c.rules||"")}</textarea></label>
     <label class="f">Note for players<textarea id="cNote" placeholder="Bring €5 for the court, nylon shuttles provided.">${esc(c.note||"")}</textarea></label>
   </form>`, `<button class="btn primary" data-act="saveTeamCfg" data-team="${t}">Save</button>`);
+  if(c.lat!=null) setTimeout(()=>showMap("cfgMap", c.lat, c.lon, {interactive:true, onMove:(la,lo)=>{ S._geo={lat:la, lon:lo}; }}), 50);
 }
 function sheetEditSession(id, team){
-  const s = id ? byId(S.sessions,id) : {team, date:nextSessionDate(teamCfg(team)), start:teamCfg(team).start, end:teamCfg(team).end, location:teamCfg(team).location||"", address:teamCfg(team).address||"", note:"", status:"open"};
-  if(!s) return;
+  const cfg0 = team ? teamCfg(team) : null;
+  const s = id ? byId(S.sessions,id) : {team, date:nextSessionDate(cfg0), start:cfg0.start, end:cfg0.end, location:cfg0.location||"", address:cfg0.address||"", lat:cfg0.lat??null, lon:cfg0.lon??null, note:"", status:"open"};
+  if(!s) return; S._geoS = s.lat!=null ? {lat:s.lat, lon:s.lon} : null;
   openSheet(id?"Edit session":"Add session", `<form id="sessForm" class="stack">
     <label class="f">Date<input type="date" id="sDate" value="${esc(s.date)}" required></label>
     <div class="row"><label class="f grow">From<input type="time" id="sStart" value="${esc(s.start)}"></label><label class="f grow">To<input type="time" id="sEnd" value="${esc(s.end)}"></label></div>
     <label class="f">Where<input id="sLoc" value="${esc(s.location||"")}"></label>
     <label class="f">Address<input id="sAddr" value="${esc(s.address||"")}"></label>
+    <div class="row"><button type="button" class="btn sm" data-act="geoSession">Find on map</button><span class="tiny muted" id="sessMapLabel">${s.lat!=null?"Pin set":""}</span></div>
+    <div class="map" id="sessMap"></div>
     <label class="f">Note<textarea id="sNote">${esc(s.note||"")}</textarea></label>
     ${id?`<label class="check"><input type="checkbox" id="sCancel" ${s.status==="cancelled"?"checked":""}> Cancelled (no session this week)</label>`:""}
   </form>`, `<button class="btn primary" data-act="saveSession" data-id="${id||""}" data-team="${s.team}">Save</button>${id&&isAdmin()?`<button class="btn danger" data-act="delSession" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
+  if(s.lat!=null) setTimeout(()=>showMap("sessMap", s.lat, s.lon, {interactive:true, onMove:(la,lo)=>{ S._geoS={lat:la, lon:lo}; }}), 50);
 }
 function sheetAttendance(id){
   const s=byId(S.sessions,id); if(!s) return;
@@ -1096,6 +1107,45 @@ function vTeamMoney(t){
   ${members.length?`<section class="card stack"><h3>Balances</h3><div class="stack" style="gap:6px">${members.sort((a,b)=>bal[b.id]-bal[a.id]).map(p=>{const n=Math.round(bal[p.id]); return `<div class="row spread"><span class="row" style="gap:8px">${avatar(p,"sm")}<span>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</span></span><b class="num balance ${n>=0?"pos":"neg"}" style="font-size:18px">${n>0?"+":""}${esc(money(n))}</b></div>`;}).join("")}</div>
     ${transfers.length?`<h3>Settle up</h3><div class="stack" style="gap:6px">${transfers.map(x=>`<div class="row spread small"><span>${esc(fullName(byId(S.players,x.from)))} → ${esc(fullName(byId(S.players,x.to)))}</span><span class="row" style="gap:8px"><b class="num">${esc(money(Math.round(x.amt)))}</b>${member&&(x.from===uid||isAdmin())?`<button class="btn sm" data-act="recordPayment" data-team="${t}" data-from="${x.from}" data-to="${x.to}" data-amt="${Math.round(x.amt)}">Paid</button>`:""}</span></div>`).join("")}</div>`:`<div class="small muted">All square.</div>`}</section>`:""}
   ${keys.length?keys.map(k=>`<div class="sec-head"><h3>${k==="other"?"Other costs":esc(fmtDay(byId(S.sessions,k)?.date||""))}</h3><span class="small muted">${esc(money(bySession[k].filter(e=>e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0)))}</span></div><div class="list">${bySession[k].map(line).join("")}</div>`).join(""):`<div class="empty"><b>No team costs yet</b>When someone books the court, add it here with who paid and who played — the app keeps everyone's balance like Splitwise.</div>`}`;
+}
+
+/* ---- Maps: address search (OpenStreetMap/Nominatim) + Leaflet preview + directions link ---- */
+async function geocode(q){
+  const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q), {headers:{"Accept":"application/json"}});
+  const j=await r.json(); if(!j.length) throw new Error("Address not found"); return {lat:+j[0].lat, lon:+j[0].lon, label:j[0].display_name};
+}
+let leafletP=null;
+function loadLeaflet(){ if(window.L) return Promise.resolve(); return leafletP ||= new Promise((res,rej)=>{ const l=document.createElement("link"); l.rel="stylesheet"; l.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(l); const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); }); }
+async function showMap(elId, lat, lon, opts={}){
+  if(lat==null||lon==null) return;
+  try{ await loadLeaflet(); const el=document.getElementById(elId); if(!el||!window.L) return; if(el._map){ el._map.remove(); el._map=null; }
+    el.style.minHeight="170px";
+    const map=L.map(el,{zoomControl:!!opts.interactive, dragging:!!opts.interactive, scrollWheelZoom:false, touchZoom:!!opts.interactive, doubleClickZoom:!!opts.interactive, attributionControl:false}).setView([lat,lon], 15);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
+    const m=L.marker([lat,lon],{draggable:!!opts.interactive}).addTo(map);
+    if(opts.onMove) m.on("dragend", ()=>{ const p=m.getLatLng(); opts.onMove(p.lat,p.lng); });
+    el._map=map; setTimeout(()=>map.invalidateSize(),250);
+  }catch(e){ console.warn("map", e); }
+}
+const mapsLink=(lat,lon,q)=> (lat!=null&&lon!=null) ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q||"")}`;
+const placeLine=(o)=> (o.location||o.address) ? `<span class="muted small">${esc(o.location||"")}${o.address?(o.location?" · ":"")+esc(o.address):""}</span> <a class="lnk small" href="${mapsLink(o.lat,o.lon,[o.location,o.address].filter(Boolean).join(", "))}" target="_blank" rel="noopener">Directions ↗</a>` : "";
+async function geoLookup(inputId, mapId, holder){
+  const q=$("#"+inputId)?.value.trim(); if(!q){ toast("Type an address first"); return; }
+  toast("Searching…");
+  try{ const g=await geocode(q); S[holder]={lat:g.lat, lon:g.lon}; const lbl=$("#"+mapId+"Label"); if(lbl) lbl.textContent=g.label; await showMap(mapId, g.lat, g.lon, {interactive:true, onMove:(la,lo)=>{ S[holder]={lat:la, lon:lo}; }}); toast("Found — drag the pin to adjust"); }
+  catch(e){ toast(e.message==="Address not found" ? "Address not found — try adding the city" : "Map search isn't available right now"); }
+}
+
+/* ---- Club rules (header) ---- */
+function sheetClubRules(){
+  const t=myTeam(); const teams = t ? [t] : (isAdmin() ? ["A","B"] : []);
+  if(!teams.length){ openSheet("Club rules", `<div class="empty"><b>Register first</b>Club rules, sessions and costs are shown for the club you register with.</div>`, `<button class="btn primary" data-act="register">Register</button>`); return; }
+  const block = t=>{ const c=teamCfg(t); return `<section class="card stack"><div class="sec-head"><h3>${esc(teamName(t))}</h3>${canManageTeam(t)?`<button class="btn sm" data-act="editTeamCfg" data-team="${t}">Edit</button>`:""}</div>
+    ${c.enabled?`<div><b>Plays ${WEEKDAYS[c.weekday]}s ${esc(c.start)}–${esc(c.end)}</b><br>${placeLine(c)}</div>${c.lat!=null?`<div class="map" id="crMap${t}"></div>`:""}`:`<div class="small muted">No regular session set.</div>`}
+    ${c.rules?`<div style="white-space:pre-wrap;font-size:15px">${esc(c.rules)}</div>`:`<div class="small muted">No club rules written yet${canManageTeam(t)?" — tap Edit and fill in “Team rules”":""}.</div>`}
+    ${c.note?`<div class="small muted">${esc(c.note)}</div>`:""}</section>`; };
+  openSheet("Club rules", `<div class="stack">${teams.map(block).join("")}<p class="tiny muted" style="margin:0">Looking for how a match is scored and served? See the game rules.</p></div>`, `<button class="btn" data-act="rules">Game rules</button>`);
+  teams.forEach(t=>{ const c=teamCfg(t); if(c.lat!=null) setTimeout(()=>showMap("crMap"+t, c.lat, c.lon), 50); });
 }
 
 /* ---- Push notifications (FCM) ---- */
@@ -1149,14 +1199,17 @@ document.addEventListener("click", e => {
     tab: ()=>{ S.tab=b.dataset.tab; render(); },
     register: ()=> sheetProfile(null),
     rules: sheetRules,
+    clubRules: sheetClubRules,
+    geoTeam: ()=> geoLookup("cAddr","cfgMap","_geo"),
+    geoSession: ()=> geoLookup("sAddr","sessMap","_geoS"),
     enablePush: ()=> registerPush(true),
     editTeamCfg: ()=> sheetTeamCfg(b.dataset.team),
-    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), updatedAt:Date.now(), updatedBy:uid||null}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
+    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:S._geo?S._geo.lat:null, lon:S._geo?S._geo.lon:null, updatedAt:Date.now(), updatedBy:uid||null}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
     addSession: ()=> sheetEditSession(null, b.dataset.team),
     editSession: ()=> sheetEditSession(id),
     session: ()=> sheetSession(id),
     saveSession: ()=> guard(async ()=>{ const f=$("#sessForm"); if(!f.reportValidity()) return; const t=b.dataset.team; const date=$("#sDate").value;
-      const data={team:t, date, start:$("#sStart").value||"08:30", end:$("#sEnd").value||"09:30", location:$("#sLoc").value.trim(), address:$("#sAddr").value.trim(), note:$("#sNote").value.trim(), updatedAt:Date.now()};
+      const data={team:t, date, start:$("#sStart").value||"08:30", end:$("#sEnd").value||"09:30", location:$("#sLoc").value.trim(), address:$("#sAddr").value.trim(), lat:S._geoS?S._geoS.lat:null, lon:S._geoS?S._geoS.lon:null, note:$("#sNote").value.trim(), updatedAt:Date.now()};
       if(id){ data.status=$("#sCancel")?.checked?"cancelled":"open"; await store.update("sessions", id, data); }
       else { let nid=`${t}_${date}`; if(byId(S.sessions,nid)) nid+="_"+rnd().slice(0,4); await store.set("sessions", nid, {...data, rsvps:{}, attended:null, status:"open", auto:false, createdAt:Date.now(), createdBy:uid||null}); }
       closeSheet(); toast("Session saved"); }),
@@ -1281,7 +1334,7 @@ async function seedDemo(){
   await store.set("events", "main", {type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT, EVENT_KEYS), description:"The big one: LL against SP, best of 3 to 21, 2 courts.", createdAt:Date.now()});
   await store.set("events", "2026-12-12-winter-doubles-social", {name:"Winter doubles social", type:"social", clubs:["B"], date:"2026-12-12", time:"14:00", venue:"Sporthalle Spandau", description:"SP members only: mixed pairs, mulled wine afterwards.", courts:2, legs:1, format:"rotation", matchesPerPlayer:3, bestOf:1, pointsTo:21, houseRules:"", createdAt:Date.now()});
   await store.set("teams", "A", {enabled:true, weekday:6, start:"10:00", end:"11:00", location:"Sporthalle Lichtenrade", address:"", voteDay:4, note:""});
-  await store.set("teams", "B", {enabled:true, weekday:0, start:"08:30", end:"09:30", location:"Sporthalle Spandau, court 2", address:"", voteDay:5, note:"€5 each for the court", rules:"Court is booked by whoever is first on the list that week; cost is split between everyone who plays. Nylon shuttles (Mavis 350). Cancel by Saturday 20:00 or you still pay your share."});
+  await store.set("teams", "B", {enabled:true, weekday:0, start:"08:30", end:"09:30", location:"Sporthalle Spandau, court 2", address:"Askanierring 150, 13585 Berlin", lat:52.5457, lon:13.1986, voteDay:5, note:"€5 each for the court", rules:"Court is booked by whoever is first on the list that week; cost is split between everyone who plays. Nylon shuttles (Mavis 350). Cancel by Saturday 20:00 or you still pay your share."});
   await store.set("expenses", store.newId(), {scope:"event", title:"Court hire 10–14h", amount:9600, date:"2027-01-16", category:"Court", paidBy:null, split:"all", createdAt:Date.now()});
   await store.set("expenses", store.newId(), {scope:"event", title:"Shuttles (2 tubes)", amount:4200, date:"2026-12-28", category:"Shuttles", paidBy:S.players[0]?.id||null, split:"all", createdAt:Date.now()});
   toast("Sample data loaded");
