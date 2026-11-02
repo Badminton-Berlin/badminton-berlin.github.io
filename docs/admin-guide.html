@@ -10,7 +10,7 @@
 
 <h2>Contents</h2>
 <div class="toc">
-  <div>1 · How it fits together</div><div>2 · Admins and rights</div><div>3 · Global settings</div><div>4 · Inviting people</div><div>5 · Club sessions and reminders</div><div>6 · Events</div><div>7 · Pairs and the schedule</div><div>8 · Match day: scores</div><div>9 · Money</div><div>Reports</div><div>10 · Behind the scenes (Firebase, GitHub)</div><div>11 · Troubleshooting</div>
+  <div>1 · How it fits together</div><div>2 · Admins and rights</div><div>3 · Global settings</div><div>4 · Inviting people</div><div>5 · Club sessions and reminders</div><div>6 · Events</div><div>7 · Pairs and the schedule</div><div>8 · Match day: scores</div><div>9 · Money (split or monthly fee, pay links)</div><div>Reports and statements</div><div>Activity log, backup, seasons, account</div><div>10 · Behind the scenes (Firebase, GitHub)</div><div>11 · Troubleshooting</div>
 </div>
 
 <h2>1. How it fits together</h2>
@@ -102,8 +102,19 @@
 <p><b>Challenge costs</b> (Money → the event): admins add court hire, shuttles, prizes; split across everyone or one club; everyone sees total, per-head share, their balance and a settle-up list.</p>
 <p><b>Club session costs</b> (Money → "LL/SP sessions"): any member adds a cost with who paid and who shares it (defaults to who played that session); payments between members are recorded with <b>Record payment</b> or the <b>Paid</b> button on a suggestion. Balances are per club and never mix with the challenge.</p>
 <div class="fig"><figure><img src="shots/money-event.png" alt=""><figcaption>Challenge money.</figcaption></figure><figure><img src="shots/money-team.png" alt=""><figcaption>Club money with balances and settle-up.</figcaption></figure></div>
+<h3>Pay links</h3>
+<p>Members can add a <b>PayPal.me name</b> and/or <b>IBAN</b> under Edit profile → Payment details. Whoever owes them then sees a <b>Pay</b> button on the settle-up line: it opens PayPal with the amount filled in, or shows the IBAN with a copy button and a <b>GiroCode QR</b> that banking apps scan. "Mark as paid" records the payment. Ask members to add their details once — it removes most of the chasing.</p>
+<h3>Monthly fee instead of per-session splits</h3>
+<p>Club setup (Sessions → Edit, or Home club card → Edit) → <b>How costs are shared</b> → <b>Monthly fee</b>. Set the fee per member per month, the month it starts and a <b>treasurer</b>. Then:</p>
+<ul>
+  <li>Every member (not guests) owes the fee each month from the month they joined. Money shows the <b>club pot</b>, <b>fees outstanding</b> and each member's balance; the treasurer (or a club admin) taps <b>Paid</b> when someone has paid.</li>
+  <li>Court and shuttle costs are added as <b>paid from the club pot</b> (the default). If a member advances a cost from their own pocket, pick them as "paid by" — the club then owes it back to them.</li>
+  <li>Untick "paid from the club pot" on a single cost to split it between specific people, e.g. a dinner.</li>
+  <li>The treasurer records their own fee as a payment to themselves. Switching modes keeps all existing costs and balances.</li>
+</ul>
+<div class="fig"><figure><img src="shots/pay.png" alt=""><figcaption>Pay sheet: PayPal link, IBAN and GiroCode.</figcaption></figure><figure><img src="shots/monthly.png" alt=""><figcaption>Monthly-fee club: pot, outstanding fees, members.</figcaption></figure></div>
 
-<h2>Reports</h2>
+<h2>Reports and statements</h2>
 <p>Admin → <b>Open club report</b> (club admins: the "Report" button on their Home club card or on the Sessions tab). Choose the club and the period (30 / 90 days, 1 year, all).</p>
 <div class="fig"><figure><img src="shots/report.png" alt=""><figcaption>KPIs, players per session, spend per month and by category.</figcaption></figure><figure><img src="shots/report2.png" alt=""><figcaption>Member table: played, attendance rate, paid, share, balance, last played; sessions list; event results.</figcaption></figure></div>
 <ul>
@@ -111,14 +122,25 @@
   <li><b>Charts</b>: players per session (last 12), spend per month (6 months) with category totals.</li>
   <li><b>Members</b>: tap a name to open the player sheet; ★ marks club admins; inactive members are greyed.</li>
   <li><b>Export</b>: <b>Attendance CSV</b> (one row per member, one column per session with 1 = played or the vote) and <b>Money CSV</b> (every cost and payment). Open in Excel or Google Sheets.</li>
+  <li><b>Statement (PDF)</b>: a printable club statement for the chosen period (members, costs, payments, sessions). Each member has their own statement under My history; you can open a member's statement from their player sheet. Use the browser's Print → Save as PDF.</li>
+  <li>When a season has been closed, the period filter gets a <b>Season</b> option (default) and past seasons are listed at the bottom.</li>
   <li>Every member has their own <b>My history</b> page (player guide, section 5).</li>
+</ul>
+
+<h2>Activity log, backup, seasons, account</h2>
+<div class="fig"><figure><img src="shots/audit.png" alt=""><figcaption>Activity log, filtered by club and type.</figcaption></figure><figure><img src="shots/season.png" alt=""><figcaption>An archived season.</figcaption></figure></div>
+<ul>
+  <li><b>Activity log</b> (Admin → Activity log): who entered which score, cost or payment, who changed members, roles, invites, events, schedules and club settings — with time and name. Club admins see their club's entries. Export CSV. Entries cannot be edited or deleted.</li>
+  <li><b>Backup</b> (Admin → Download JSON): every collection in one file. Keep a copy after the challenge or once a month. If something is ever deleted by mistake, the data can be restored from it in the Firebase console.</li>
+  <li><b>Seasons</b> (Admin → Close season): name it, set the dates, close. The app stores a frozen snapshot (per club: sessions, spend, every member's played/rate/paid/share; events with scores and top players). From the next day, history and reports show the new season by default (switch to "All time" any time). Balances are not reset. Members see their own past-season lines under My history.</li>
+  <li><b>Your account — link Google</b>: profiles and admin rights are tied to the device. Link your Google account (Admin → Your account, or your profile sheet) so you can <b>Restore</b> on a new phone: open the app, tap Restore on the Home banner, sign in with the same Google account — profile, history and admin rights come back. Recommend it to every member. On iPhone, register and link in Safari before adding the app to the home screen, or link again from the home-screen app (it has its own storage).</li>
 </ul>
 
 <h2>10. Behind the scenes</h2>
 <table><tr><th>Piece</th><th>Where</th><th>Notes</th></tr>
 <tr><td>App files</td><td>GitHub repo <code>hiteshmalhotra2583/badminton-challenge</code></td><td>Every push to <code>main</code> redeploys the site (GitHub Pages) within ~1 minute.</td></tr>
 <tr><td>Database</td><td>Firebase project <code>preussenpark-challenge</code> (Firestore, eur3)</td><td>Free tier; data visible and editable in the Firebase console. Security rules live in <code>firestore.rules</code> and are published in the console's Rules tab.</td></tr>
-<tr><td>Sign-in</td><td>Firebase Authentication, Anonymous</td><td>Each phone gets an ID on first open; profiles and admin rights hang on that ID.</td></tr>
+<tr><td>Sign-in</td><td>Firebase Authentication: Anonymous + Google</td><td>Each phone gets an ID on first open; profiles and admin rights hang on that ID. Linking Google keeps the same ID, so it can be restored on another device.</td></tr>
 <tr><td>Notifications</td><td>GitHub Actions <code>notify.yml</code> + <code>scripts/notify.mjs</code> (hourly: new-member alerts; 07:00 Berlin: session reminder)</td><td>Needs secret <code>FIREBASE_SERVICE_ACCOUNT</code>: Firebase → Project settings → Service accounts → Generate new private key → paste the JSON into GitHub → Settings → Secrets and variables → Actions.</td></tr>
 <tr><td>Push keys</td><td>Firebase Cloud Messaging, Web Push certificate</td><td>Public key is in <code>index.html</code>; the service worker (<code>sw.js</code>) shows the notification.</td></tr>
 <tr><td>Guides</td><td><code>docs/</code> in the repo</td><td>These PDFs; also linked from the app's rules page.</td></tr>
@@ -127,7 +149,9 @@
 <h2>11. Troubleshooting</h2>
 <table><tr><th>Symptom</th><th>Fix</th></tr>
 <tr><td>Someone sees no events</td><td>They are not registered, or their club is not in the event's "clubs taking part". Check Admin → Event → Edit.</td></tr>
-<tr><td>Duplicate player</td><td>Players → tap → <b>Delete</b> (global admin) or <b>Set inactive</b>. A person who changed phone registers again on the new one.</td></tr>
+<tr><td>Duplicate player</td><td>Players → tap → <b>Delete</b> (global admin) or <b>Set inactive</b>. A person who changed phone should use <b>Restore</b> with their linked Google account; otherwise they register again on the new one.</td></tr>
+<tr><td>Google sign-in popup doesn't open</td><td>On an iPhone home-screen app the popup can be blocked; the app then uses a redirect. If that fails too, link in Safari (open the site URL) and restore in the home-screen app.</td></tr>
+<tr><td>Who changed this?</td><td>Admin → Activity log, filter by club or type.</td></tr>
 <tr><td>Old version on a phone</td><td>Close and reopen the app, or pull to refresh. Remove and re-add to the home screen to refresh the icon.</td></tr>
 <tr><td>No reminder arrived</td><td>Phone has not enabled notifications; iPhone app not on home screen; GitHub secret missing; or it isn't the club's reminder day. Run the workflow with force = true to test.</td></tr>
 <tr><td>"Permission" error</td><td>The action isn't allowed for that role (e.g. a guest editing the club setup). Admins can do it.</td></tr>

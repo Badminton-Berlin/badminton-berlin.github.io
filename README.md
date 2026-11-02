@@ -162,6 +162,30 @@ have an expiry and a use count. With "Open registration" off, registration is in
   money CSV exports. Period filter 30/90/365 days or all.
 - Pairs, matches and challenge costs are now loaded for every event the reader can see (not only the selected one).
 
+## Money extras
+
+- **Pay links**: players store `paypal` (PayPal.me handle) and `iban`/`ibanName` on their profile. The settle-up "Pay"
+  button opens `paypal.me/<handle>/<amount>EUR` or shows the IBAN + an EPC/GiroCode QR (qrcode-generator from cdnjs,
+  loaded lazily). "Mark as paid" records a payment.
+- **Monthly fee mode** (`teams/{t}.feeMode = "monthly"`, `feeAmount` cents, `feeFrom` "YYYY-MM", `treasurer` uid):
+  every non-guest member owes the fee per month from max(feeFrom, join month) until deactivation; payments to the
+  treasurer (or to self for the treasurer) go into the pot; costs with an empty `splitAmong` are paid from the pot
+  (if `paidBy` is not the treasurer the club owes them). `teamMoneyMonthly()` returns `fee: {pot, outstanding, due…}`.
+- **Statements**: `memberStatementHtml` / `clubStatementHtml` open a print view (`openPrintable`), Print → Save as PDF.
+
+## Admin extras
+
+- **Google account linking**: `linkWithPopup` (fallback `linkWithRedirect`) keeps the anonymous uid, so profile and
+  admin rights survive. "Restore" on the Home banner = `signInWithPopup` + reload. Google provider is enabled in the
+  Firebase console (support email set).
+- **Activity log**: collection `audit` `{at, by, byName, action, detail, team, eventId}`, written by `audit()` on
+  scores, costs, payments, member/role changes, invites, events, schedules, club setup, seasons, backups. Admins read
+  all; club admins read `team == theirs`. Never updated or deleted. Admin → Activity log, CSV export.
+- **Backup**: Admin → Download JSON (`store.getAll` for every collection).
+- **Seasons**: `seasons/{id}` = frozen snapshot (`seasonSnapshot`), `settings/event.seasonStart` = day after the
+  season's end. History/report default to "This season"; members see their past-season rows.
+- Build: `python3 build/build.py` writes `index.html` (live config + VAPID) and `build/demo-mobile.html` (demo mode).
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered
