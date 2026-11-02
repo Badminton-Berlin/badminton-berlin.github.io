@@ -136,6 +136,19 @@ and challenge), and your team's regular slot plus its team rules (Sessions → R
 session → Edit → "Team rules"). Tapping an event opens the event screen: poster, score,
 countdown, format, standings.
 
+## Invites
+
+Players → **Invite someone** (admins, and members given the invite right under Players → player →
+"May invite other players"). Kinds: club member, guest of the club, guest for one session. A link
+(`?invite=CODE`) or the code is shared; the invitee registers with club/session preset. Invites
+have an expiry and a use count. With "Open registration" off, registration is invite-only
+(enforced by the rules). Guests can't edit the club setup; one-session guests see only that session.
+
+## Guides
+
+`docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered
+with Chromium). Linked from the app's rules pages.
+
 ## Who sees what (club scoping)
 
 Every event has a list of **participating clubs** (set by the admin when creating or editing

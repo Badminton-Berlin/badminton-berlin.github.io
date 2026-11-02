@@ -861,6 +861,7 @@ function sheetRules(){
       `Help the organiser: bring the shuttles back, move your match on as soon as a court is free.`
     ])}
     <p class="tiny muted" style="margin:0">Based on the BWF Laws of Badminton; the organiser can add house rules in Admin → Event.</p>
+    <div class="row"><a class="btn sm" href="https://hiteshmalhotra2583.github.io/badminton-challenge/docs/player-guide.pdf" target="_blank" rel="noopener">Player guide (PDF)</a>${isAdmin()?`<a class="btn sm" href="https://hiteshmalhotra2583.github.io/badminton-challenge/docs/admin-guide.pdf" target="_blank" rel="noopener">Admin guide (PDF)</a>`:""}</div>
   </div>`, "");
 }
 function sheetEvent(){
@@ -1158,7 +1159,7 @@ function sheetClubRules(){
     ${c.enabled?`<div><b>Plays ${WEEKDAYS[c.weekday]}s ${esc(c.start)}–${esc(c.end)}</b><br>${placeLine(c)}</div>${c.lat!=null?`<div class="map" id="crMap${t}"></div>`:""}`:`<div class="small muted">No regular session set.</div>`}
     ${c.rules?`<div style="white-space:pre-wrap;font-size:15px">${esc(c.rules)}</div>`:`<div class="small muted">No club rules written yet${canManageTeam(t)?" — tap Edit and fill in “Team rules”":""}.</div>`}
     ${c.note?`<div class="small muted">${esc(c.note)}</div>`:""}</section>`; };
-  openSheet("Club rules", `<div class="stack">${teams.map(block).join("")}<p class="tiny muted" style="margin:0">Looking for how a match is scored and served? See the game rules.</p></div>`, `<button class="btn" data-act="rules">Game rules</button>`);
+  openSheet("Club rules", `<div class="stack">${teams.map(block).join("")}<p class="tiny muted" style="margin:0">Looking for how a match is scored and served? See the game rules. The player guide (PDF) explains the whole app.</p></div>`, `<a class="btn" href="https://hiteshmalhotra2583.github.io/badminton-challenge/docs/player-guide.pdf" target="_blank" rel="noopener">Player guide</a><button class="btn" data-act="rules">Game rules</button>`);
   teams.forEach(t=>{ const c=teamCfg(t); if(c.lat!=null) setTimeout(()=>showMap("crMap"+t, c.lat, c.lon), 50); });
 }
 
