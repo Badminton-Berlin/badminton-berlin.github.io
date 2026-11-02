@@ -144,6 +144,15 @@ Players → **Invite someone** (admins, and members given the invite right under
 have an expiry and a use count. With "Open registration" off, registration is invite-only
 (enforced by the rules). Guests can't edit the club setup; one-session guests see only that session.
 
+## Roles and inactive members
+
+- **Global admin** — everything. **Club admin** (assigned by a global admin on the player sheet) — adds/invites members
+  of their club, sets them inactive/active, gives invite rights, edits the club setup. **Member**, **guest**, **one-session guest**.
+- **Inactive** members (set by admins / club admins) lose access to sessions, events and club activity but keep their profile
+  and read access to the costs and payments they are part of (own balance). Enforced by the rules; they are excluded from
+  pairs, attendance and cost splits. Reactivate from the player sheet; permanent delete is global-admin only.
+- Admins/club admins see a **New members** card on Home, and the hourly notification job pushes "X joined <club>".
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered

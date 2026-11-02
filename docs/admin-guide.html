@@ -29,11 +29,16 @@
 <h2>2. Admins and rights</h2>
 <ul>
   <li><b>Admin</b> — full control: events, pairs, schedule, scores, all costs, players, invites, settings. The first person who opened the live app claimed it; add more under Admin → Admins (choose a registered player → <b>Add admin</b>). Admin rights are tied to the device the person registered on.</li>
+  <li><b>Club admin</b> — one or more per club (only a global admin assigns it: Players → tap the person → <b>Club admin of …</b>). A club admin adds members manually, invites, sets members <b>inactive</b> or reactivates them, gives the invite right, and edits the club's regular session and team rules. They see only their own club.</li>
   <li><b>Invite right</b> — a member may invite others without being admin: Players → tap the person → tick <b>May invite other players</b>. They can only invite into their own club.</li>
   <li><b>Member</b> — registers, votes, edits their club's regular session, adds session costs and payments, enters attendance.</li>
   <li><b>Guest</b> — like a member but cannot change the club setup. A <b>one-session guest</b> sees only that session. Guests can be upgraded: tap the player → <b>Make a full member</b>.</li>
 </ul>
-<div class="warn">Make one trusted person per club an admin as a backup, so the app is not dependent on a single phone.</div>
+<h3>Inactive members</h3>
+<p>Instead of deleting someone who stops coming, set them <b>inactive</b> (Players → person → <b>Set inactive</b>; club admins can do this for their club). An inactive member no longer sees sessions, votes, events, the schedule or other members' activity, is left out of pairs, attendance and cost splits — but keeps their profile and can still open the app to see their own costs, payments and balance. <b>Reactivate</b> brings everything back. Permanent <b>Delete</b> stays a global-admin action.</p>
+<h3>Being told when someone joins</h3>
+<p>Two ways: on Home, admins and club admins get a <b>New members</b> card listing everyone who registered since they last tapped "Mark seen" — tap a name to set rights or deactivate. In addition, the notification job (section 10) runs every hour and sends a push notification "Jonas Weber joined Spandau/Staaken" to the global admins and that club's admins who have notifications enabled.</p>
+<div class="warn">Make one trusted person per club a club admin, and a second global admin as a backup, so the app is not dependent on a single phone.</div>
 
 <h2>3. Global settings</h2>
 <p>Admin → Event → <b>Edit</b> contains both the selected event's settings and the global ones:</p>
@@ -103,7 +108,7 @@
 <tr><td>App files</td><td>GitHub repo <code>hiteshmalhotra2583/badminton-challenge</code></td><td>Every push to <code>main</code> redeploys the site (GitHub Pages) within ~1 minute.</td></tr>
 <tr><td>Database</td><td>Firebase project <code>preussenpark-challenge</code> (Firestore, eur3)</td><td>Free tier; data visible and editable in the Firebase console. Security rules live in <code>firestore.rules</code> and are published in the console's Rules tab.</td></tr>
 <tr><td>Sign-in</td><td>Firebase Authentication, Anonymous</td><td>Each phone gets an ID on first open; profiles and admin rights hang on that ID.</td></tr>
-<tr><td>Reminders</td><td>GitHub Actions <code>notify.yml</code> + <code>scripts/notify.mjs</code></td><td>Needs secret <code>FIREBASE_SERVICE_ACCOUNT</code>: Firebase → Project settings → Service accounts → Generate new private key → paste the JSON into GitHub → Settings → Secrets and variables → Actions.</td></tr>
+<tr><td>Notifications</td><td>GitHub Actions <code>notify.yml</code> + <code>scripts/notify.mjs</code> (hourly: new-member alerts; 07:00 Berlin: session reminder)</td><td>Needs secret <code>FIREBASE_SERVICE_ACCOUNT</code>: Firebase → Project settings → Service accounts → Generate new private key → paste the JSON into GitHub → Settings → Secrets and variables → Actions.</td></tr>
 <tr><td>Push keys</td><td>Firebase Cloud Messaging, Web Push certificate</td><td>Public key is in <code>index.html</code>; the service worker (<code>sw.js</code>) shows the notification.</td></tr>
 <tr><td>Guides</td><td><code>docs/</code> in the repo</td><td>These PDFs; also linked from the app's rules page.</td></tr>
 </table>
@@ -111,7 +116,7 @@
 <h2>11. Troubleshooting</h2>
 <table><tr><th>Symptom</th><th>Fix</th></tr>
 <tr><td>Someone sees no events</td><td>They are not registered, or their club is not in the event's "clubs taking part". Check Admin → Event → Edit.</td></tr>
-<tr><td>Duplicate player</td><td>Players → tap → <b>Remove</b>. A person who changed phone registers again on the new one.</td></tr>
+<tr><td>Duplicate player</td><td>Players → tap → <b>Delete</b> (global admin) or <b>Set inactive</b>. A person who changed phone registers again on the new one.</td></tr>
 <tr><td>Old version on a phone</td><td>Close and reopen the app, or pull to refresh. Remove and re-add to the home screen to refresh the icon.</td></tr>
 <tr><td>No reminder arrived</td><td>Phone has not enabled notifications; iPhone app not on home screen; GitHub secret missing; or it isn't the club's reminder day. Run the workflow with force = true to test.</td></tr>
 <tr><td>"Permission" error</td><td>The action isn't allowed for that role (e.g. a guest editing the club setup). Admins can do it.</td></tr>

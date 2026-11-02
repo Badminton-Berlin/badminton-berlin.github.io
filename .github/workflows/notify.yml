@@ -1,7 +1,7 @@
-name: Weekly session reminder
+name: Notifications (new members hourly, session reminder weekly)
 on:
   schedule:
-    - cron: "0 6 * * *"   # every day 06:00 UTC = 07:00 Berlin (winter) / 08:00 (summer); the script only sends on each team's vote day
+    - cron: "7 * * * *"   # hourly: new-member alerts every run; the vote reminder only at 07:00 Berlin on each club's vote day
   workflow_dispatch:
     inputs:
       force:

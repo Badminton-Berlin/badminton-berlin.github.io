@@ -494,17 +494,18 @@ const ICONS = {
 function avatar(p, cls=""){ const t=p?.team||""; return (p?.photo && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p.photo)) ? `<img class="avatar ${cls} ${t}" src="${p.photo}" alt="">` : `<div class="avatar ${cls} ${t}">${esc(initials(p))}</div>`; }
 
 function renderTabs(){
-  const tabs=[["home","Home"],["sessions","Sessions"],["matches","Matches"],["money","Money"],["players","Players"]];
+  const tabs = amInactive() ? [["home","Home"],["money","Money"]] : [["home","Home"],["sessions","Sessions"],["matches","Matches"],["money","Money"],["players","Players"]];
   if(isAdmin()) tabs.push(["admin","Admin"]);
   $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${S.tab===k||(S.tab==="event"&&k==="home")?"page":"false"}">${ICONS[k]}${l}</button>`).join("");
 }
 function render(){
   window.refreshScopedSubs?.();
   $("#hdrTitle").textContent = S.event.appName || "Badminton";
-  const mt=myTeam(); $("#hdrEyebrow").textContent = mt ? `${teamName(mt)}${isAdmin()?" · admin":""}` : `${S.event.teamA} · ${S.event.teamB}`;
+  const mt=myTeam(); $("#hdrEyebrow").textContent = mt ? `${teamName(mt)}${isAdmin()?" · admin":isClubAdmin(mt)?" · club admin":amInactive()?" · inactive":""}` : `${S.event.teamA} · ${S.event.teamB}`;
   const m = me(); $("#meBtn").innerHTML = m ? avatar(m,"sm") : `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
   renderTabs();
   if(S.tab==="admin" && !isAdmin()) S.tab="home";
+  if(amInactive() && !["home","money"].includes(S.tab)) S.tab="home";
   const fn = {home:vHome, event:vEvent, sessions:vSessions, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
   view.innerHTML = fn();
   view.scrollTop = S._scroll?.[S.tab] || 0;
@@ -554,8 +555,22 @@ function vEvent(){
   ${next.length ? `<section class="stack"><div class="sec-head"><h3>Up next</h3><button class="btn ghost sm" data-act="tab" data-tab="matches">All matches</button></div>${next.map(matchCard).join("")}</section>` : ""}
   ${S.matches.length ? `<section class="card stack"><h3>Standings</h3>${standingsTable()}</section>` : ""}`;
 }
+function vInactiveHome(){
+  const m=me(); const tm=teamMoney(m.team); const net=Math.round(tm.bal[uid]||0); const items=S.expenses.filter(e=>e.scope==="team").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  return `<section class="card stack" style="border-color:var(--warn)"><h3>Membership inactive</h3><div>Your membership of <b>${esc(teamName(m.team))}</b> has been set to inactive${m.deactivatedAt?` on ${esc(fmtDate(new Date(m.deactivatedAt).toISOString().slice(0,10)))}`:""}. You can still see your own history and balance below. To become active again, contact your club admin.</div></section>
+  <div class="stats"><div class="stat"><b class="balance ${net>=0?"pos":"neg"}">${net>0?"+":""}${esc(money(net))}</b><span>${net>0?"Owed to you":net<0?"You owe":"Balance"}</span></div><div class="stat"><b>${items.filter(e=>e.type!=="payment").length}</b><span>Costs</span></div><div class="stat"><b>${items.filter(e=>e.type==="payment").length}</b><span>Payments</span></div></div>
+  <section class="stack"><div class="sec-head"><h3>Your costs and payments</h3><button class="btn ghost sm" data-act="tab" data-tab="money">Details</button></div>${items.length?`<div class="list">${items.slice(0,8).map(e=> e.type==="payment" ? `<div class="item"><div class="t"><b>${esc(fullName(byId(S.players,e.from)))} paid ${esc(fullName(byId(S.players,e.to)))}</b><span>${esc(fmtDate(e.date))}</span></div><span class="amt muted">${esc(money(e.amount))}</span></div>` : `<div class="item"><div class="t"><b>${esc(e.title)}</b><span>${esc(fmtDate(e.date))} · paid by ${esc(byId(S.players,e.paidBy)?.first||"?")} · ${(e.splitAmong||[]).length} ways</span></div><span class="amt">${esc(money(e.amount))}</span></div>`).join("")}</div>`:`<div class="empty">No costs recorded for you.</div>`}</section>`;
+}
+function newMembersCard(){
+  if(!(isAdmin() || isClubAdmin(myTeam()))) return "";
+  const since = +lsGet("ppc_seenJoin", 0); const t = isAdmin() ? null : myTeam();
+  const fresh = S.players.filter(p=> (p.createdAt||0) > since && (!t || p.team===t) && p.id!==uid && !p.manual).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(!fresh.length) return "";
+  return `<section class="card stack" style="border-color:var(--team-b)"><div class="sec-head"><h3>New members (${fresh.length})</h3><button class="btn ghost sm" data-act="seenJoin">Mark seen</button></div><div class="list">${fresh.slice(0,6).map(p=>`<button class="item" data-act="player" data-id="${p.id}">${avatar(p,"sm")}<div class="t"><b>${esc(fullName(p))}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}</b><span>joined ${esc(teamName(p.team))} · ${esc(fmtDate(new Date(p.createdAt||Date.now()).toISOString().slice(0,10)))}</span></div></button>`).join("")}</div><div class="tiny muted">Tap a name to set invite rights, deactivate or remove. ${isAdmin()||isClubAdmin(myTeam())?"Push notifications about new members arrive hourly when enabled.":""}</div></section>`;
+}
 function vHome(){
   const m=me(), today=todayISO();
+  if(amInactive()) return vInactiveHome();
   const banner = inviteBanner() || (!m ? (isDemo ? `<div class="banner info"><span class="grow">Try the player side: register a test profile.</span><button class="btn primary" data-act="register">Register</button></div>` : `<div class="banner info"><span class="grow">You're not registered yet.</span><button class="btn primary" data-act="register">Register</button></div>`) : "");
   // next team session with vote
   let sessionCard="";
@@ -585,7 +600,7 @@ function vHome(){
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
   const evBlock = (m && m.sessionOnly) ? "" : (!m && !isAdmin() && !isDemo) ? `<section class="card stack"><h3>Events</h3><div class="small muted">Register with your club to see its events, sessions and costs.</div></section>` : eventsList();
-  return banner + sessionCard + evBlock + matchesCard + moneyCard + rulesCard;
+  return banner + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard;
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
@@ -625,10 +640,12 @@ function standingsTable(){
 function vPlayers(){
   const {playerStats} = standings();
   const list = (t)=>{
-    const ps = S.players.filter(p=>p.team===t).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
-    if(!ps.length) return `<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`;
+    const ps = S.players.filter(p=>p.team===t && isActive(p)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    const inactive = S.players.filter(p=>p.team===t && !isActive(p)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    const inactiveBlock = (canManage(t) && inactive.length) ? `<div class="sec-head" style="margin-top:12px"><h3>Inactive (${inactive.length})</h3></div><div class="list">${inactive.map(p=>`<button class="item" data-act="player" data-id="${p.id}" style="opacity:.7">${avatar(p)}<div class="t"><b>${esc(fullName(p))}</b><span>inactive${p.deactivatedAt?" since "+esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10))):""}</span></div></button>`).join("")}</div>` : "";
+    if(!ps.length) return `<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>` + inactiveBlock;
     return `<div class="list">${ps.map(p=>{ const s=playerStats[p.id]; const pr=S.pairs.find(x=>(x.players||[]).includes(p.id)); const a=age(p.dob);
-      return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}</b><span>${a!=null?a+" yrs":""}${S.event.format==="rotation" ? ` · ${S.matches.filter(m=>[m.pairA,m.pairB].some(id=>(byId(S.allPairs,id)?.players||[]).includes(p.id))).length} matches` : pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>`;
+      return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.role==="clubAdmin"?' <span class="pill A" style="display:inline-flex">club admin</span>':p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}</b><span>${a!=null?a+" yrs":""}${S.event.format==="rotation" ? ` · ${S.matches.filter(m=>[m.pairA,m.pairB].some(id=>(byId(S.allPairs,id)?.players||[]).includes(p.id))).length} matches` : pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>` + inactiveBlock;
   };
   if(S.filter==="stats") return `
   <div class="seg" data-seg="filter"><button class="A" aria-pressed="false" data-val="A">${esc(S.event.shortA)}</button><button class="B" aria-pressed="false" data-val="B">${esc(S.event.shortB)}</button><button aria-pressed="true" data-val="stats">Stats</button></div>
@@ -637,7 +654,8 @@ function vPlayers(){
   <div class="seg" data-seg="filter"><button class="A" aria-pressed="${S.filter!=="B"}" data-val="A">${esc(S.event.shortA)} (${S.players.filter(p=>p.team==="A").length})</button><button class="B" aria-pressed="${S.filter==="B"}" data-val="B">${esc(S.event.shortB)} (${S.players.filter(p=>p.team==="B").length})</button><button aria-pressed="false" data-val="stats">Stats</button></div>
   ${list(S.filter==="B"?"B":"A")}
   ${!me() ? `<button class="btn primary block" data-act="register">Register yourself</button>` : ""}
-  ${canInvite() ? `<button class="btn block" data-act="invite">Invite someone</button>` : ""}`;
+  ${canInvite() ? `<button class="btn block" data-act="invite">Invite someone</button>` : ""}
+  ${!isAdmin() && isClubAdmin(myTeam()) ? `<button class="btn block" data-act="addPlayer">Add a member manually</button>` : ""}`;
 }
 function playerStatsTable(){
   const {playerStats} = standings();
@@ -662,8 +680,12 @@ function sheetPlayer(id){
     <div class="stats"><div class="stat"><b>${s.w}</b><span>Won</span></div><div class="stat"><b>${s.l}</b><span>Lost</span></div><div class="stat"><b>${mine.length}</b><span>Matches</span></div></div>
     ${mine.length?`<div class="stack">${mine.map(matchCard).join("")}</div>`:""}
     ${p.guest?`<div class="small muted">Guest${p.sessionOnly?` for one session (${esc(fmtDay(byId(S.sessions,p.sessionOnly)?.date||""))})`:" of the club"}.</div>`:""}
-    ${isAdmin() && p.id!==uid ? `<label class="check"><input type="checkbox" data-act="toggleInvite" data-id="${id}" ${p.canInvite?"checked":""}> May invite other players <span class="help">(members, guests, one-session guests)</span></label>${p.guest?`<button class="btn sm" data-act="makeMember" data-id="${id}">Make a full member</button>`:""}` : ""}
-  `, (p.id===uid || isAdmin()) ? `<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Remove</button>`:""}` : "");
+    ${!isActive(p)?`<div class="banner" style="display:block"><b>Inactive</b>${p.deactivatedAt?` since ${esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10)))}`:""}. Sees only their own history and balance.</div>`:""}
+    ${canManage(p.team) && p.id!==uid ? `<div class="card stack" style="gap:8px"><h3>Manage</h3>
+      <label class="check"><input type="checkbox" data-act="toggleInvite" data-id="${id}" ${p.canInvite?"checked":""}> May invite other players</label>
+      ${isAdmin()?`<label class="check"><input type="checkbox" data-act="toggleClubAdmin" data-id="${id}" ${p.role==="clubAdmin"?"checked":""}> Club admin of ${esc(teamName(p.team))} <span class="help">(adds / deactivates members, edits the club setup)</span></label>`:""}
+      <div class="row">${p.guest?`<button class="btn sm" data-act="makeMember" data-id="${id}">Make a full member</button>`:""}${isActive(p)?`<button class="btn sm danger" data-act="deactivate" data-id="${id}">Set inactive</button>`:`<button class="btn sm primary" data-act="reactivate" data-id="${id}">Reactivate</button>`}</div></div>` : ""}
+  `, (p.id===uid || canManage(p.team)) ? `<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()&&p.id!==uid?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Delete</button>`:""}` : "");
 }
 
 /* ---- Matches ---- */
@@ -930,7 +952,7 @@ function sheetProfile(id){
   const isNew = !id;
   S._photo = p.photo||"";
   const inv = (isNew && !S._adminAdd && S.pendingInvite && !S.pendingInvite.missing && inviteValid(S.pendingInvite)) ? S.pendingInvite : null;
-  if(inv) p.team = inv.team;
+  if(inv) p.team = inv.team; if(S._adminAdd && S._forceTeam) p.team = S._forceTeam;
   if(isNew && !isDemo && S.event.registrationOpen===false && !isAdmin() && !inv){ openSheet("Invite only", `<div class="stack"><div class="empty"><b>Registration is by invitation</b>Ask your club's organiser for an invite link, or enter the code you were given.</div><form id="codeForm" class="stack"><label class="f">Invite code<input id="inviteCodeInput" placeholder="ABCD2345" style="text-transform:uppercase"></label></form></div>`, `<button class="btn primary" data-act="useInviteCode">Continue</button>`); return; }
   openSheet(isNew ? (S._adminAdd?"Add player":"Register") : "Edit profile", `<form id="profForm" class="stack">
     ${inv ? `<div class="banner info" style="display:block">${inv.kind==="session"?`Guest for <b>${esc(inv.sessionLabel)}</b> with ${esc(teamName(inv.team))}`:inv.kind==="guest"?`Guest of ${esc(teamName(inv.team))}`:`Joining ${esc(teamName(inv.team))}`}${inv.createdByName?` · invited by ${esc(inv.createdByName)}`:""}</div>` : isNew && !S._adminAdd ? `<p class="lead" style="margin:0">Your profile is visible to everyone in the challenge. Pick your team, add a photo so people recognise you on court.</p>`:""}
@@ -956,8 +978,13 @@ async function shrinkPhoto(file, size=320, limit=60000){
 /* ---------------- Team sessions, RSVP votes, push reminders, Splitwise-style team money ---------------- */
 const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const myTeam = ()=> me()?.team || null;
-const canManageTeam = t => isAdmin() || myTeam()===t;
-const canEditTeam = t => isAdmin() || (myTeam()===t && !me()?.guest);
+const isActive = p => !!p && p.active!==false;
+const amInactive = ()=> !!me() && !isActive(me()) && !isAdmin();
+const isClubAdmin = t => !!me() && isActive(me()) && me().role==="clubAdmin" && myTeam()===t;
+const canManage = t => isAdmin() || isClubAdmin(t);               // add/deactivate members, team setup, invites
+const canManageTeam = t => isAdmin() || (myTeam()===t && isActive(me()));   // take part: vote, attendance, costs
+const canEditTeam = t => isAdmin() || isClubAdmin(t);
+const activePlayers = ()=> S.players.filter(isActive);
 const teamCfg = t => S.teams.find(x=>x.id===t) || {id:t, enabled:false, weekday:0, start:"08:30", end:"09:30", location:"", address:"", voteDay:5, note:""};
 function localISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function nextSessionDate(cfg, from=new Date()){
@@ -979,7 +1006,7 @@ async function ensureNextSessions(){
   }
 }
 function teamMoney(t){
-  const members=S.players.filter(p=>p.team===t); const bal={}; members.forEach(p=>bal[p.id]=0);
+  const members=S.players.filter(p=>p.team===t && (isActive(p) || p.id===uid)); const bal={}; S.players.filter(p=>p.team===t).forEach(p=>bal[p.id]=0);
   const items=S.expenses.filter(e=>e.scope==="team" && e.team===t); let total=0;
   for(const e of items){ const amt=+e.amount||0;
     if(e.type==="payment"){ if(bal[e.from]!=null) bal[e.from]+=amt; if(bal[e.to]!=null) bal[e.to]-=amt; }
@@ -1078,7 +1105,7 @@ function sheetEditSession(id, team){
 }
 function sheetAttendance(id){
   const s=byId(S.sessions,id); if(!s) return;
-  const members=S.players.filter(p=>p.team===s.team).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const members=S.players.filter(p=>p.team===s.team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   const cur=new Set(attendees(s));
   openSheet("Who played?", `<div class="stack"><p class="small muted" style="margin:0">Tick everyone who actually played on ${esc(fmtDay(s.date))}. Costs for this session are split between them.</p>
     <div class="list">${members.map(p=>`<label class="item" style="cursor:pointer"><input type="checkbox" class="att" value="${p.id}" ${cur.has(p.id)?"checked":""} style="width:22px;height:22px;accent-color:var(--accent)">${avatar(p,"sm")}<div class="t"><b>${esc(fullName(p))}</b><span>${(s.rsvps||{})[p.id]?"voted "+(s.rsvps||{})[p.id]:"no vote"}</span></div></label>`).join("")}</div></div>`,
@@ -1087,7 +1114,7 @@ function sheetAttendance(id){
 function sheetTeamExpense(id, team, sessionId){
   const e = id ? byId(S.expenses,id) : {title:"Court", amount:0, paidBy:uid, category:"Court", date:(byId(S.sessions,sessionId)?.date)||localISO(new Date()), note:"", team, sessionId:sessionId||"", splitAmong:null};
   if(!e) return; team=e.team;
-  const members=S.players.filter(p=>p.team===team).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const members=S.players.filter(p=>p.team===team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   const sess=S.sessions.filter(s=>s.team===team).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12);
   const defaultSplit = e.splitAmong || (e.sessionId && byId(S.sessions,e.sessionId) ? attendees(byId(S.sessions,e.sessionId)) : members.map(p=>p.id));
   const sel=new Set(defaultSplit);
@@ -1103,7 +1130,7 @@ function sheetTeamExpense(id, team, sessionId){
   </form>`, `<button class="btn primary" data-act="saveTeamExpense" data-id="${id||""}" data-team="${team}">Save</button>${id&&(isAdmin()||e.createdBy===uid)?`<button class="btn danger" data-act="delExpense" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
 }
 function sheetPayment(team, from, to, amt){
-  const members=S.players.filter(p=>p.team===team).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const members=S.players.filter(p=>p.team===team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   openSheet("Record a payment", `<form id="payForm" class="stack"><p class="small muted" style="margin:0">Use this when someone pays a team-mate back (cash, PayPal…). It settles the balance.</p>
     <label class="f">Who paid<select id="pFrom">${members.map(p=>`<option value="${p.id}" ${p.id===(from||uid)?"selected":""}>${esc(fullName(p))}</option>`).join("")}</select></label>
     <label class="f">To whom<select id="pTo">${members.map(p=>`<option value="${p.id}" ${p.id===to?"selected":""}>${esc(fullName(p))}</option>`).join("")}</select></label>
@@ -1118,8 +1145,8 @@ function vTeamMoney(t){
     : `<button class="item" data-act="teamExpense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>${esc(fmtDate(e.date))} · paid by ${esc(byId(S.players,e.paidBy)?.first||"?")} · ${(e.splitAmong||[]).length} ways</span></div><span class="amt">${esc(money(e.amount))}</span></button>`;
   return `
   <div class="stats"><div class="stat"><b>${esc(money(total))}</b><span>Team spend</span></div><div class="stat"><b>${items.filter(e=>e.type!=="payment").length}</b><span>Costs</span></div><div class="stat"><b class="balance ${myNet>=0?"pos":"neg"}">${myNet!=null?esc(money(Math.round(myNet))):"—"}</b><span>${myNet>0?"Owed to you":myNet<0?"You owe":"Your balance"}</span></div></div>
-  ${member?`<div class="row"><button class="btn primary grow" data-act="addTeamExpense" data-team="${t}">Add cost</button><button class="btn grow" data-act="recordPayment" data-team="${t}">Record payment</button></div>`:""}
-  ${members.length?`<section class="card stack"><h3>Balances</h3><div class="stack" style="gap:6px">${members.sort((a,b)=>bal[b.id]-bal[a.id]).map(p=>{const n=Math.round(bal[p.id]); return `<div class="row spread"><span class="row" style="gap:8px">${avatar(p,"sm")}<span>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</span></span><b class="num balance ${n>=0?"pos":"neg"}" style="font-size:18px">${n>0?"+":""}${esc(money(n))}</b></div>`;}).join("")}</div>
+  ${member && !amInactive()?`<div class="row"><button class="btn primary grow" data-act="addTeamExpense" data-team="${t}">Add cost</button><button class="btn grow" data-act="recordPayment" data-team="${t}">Record payment</button></div>`:""}
+  ${members.length?`<section class="card stack"><h3>Balances</h3><div class="stack" style="gap:6px">${[...members, ...S.players.filter(p=>p.team===t && !isActive(p) && p.id!==uid && Math.abs(bal[p.id]||0)>=1)].sort((a,b)=>bal[b.id]-bal[a.id]).map(p=>{const n=Math.round(bal[p.id]); return `<div class="row spread"><span class="row" style="gap:8px">${avatar(p,"sm")}<span>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</span></span><b class="num balance ${n>=0?"pos":"neg"}" style="font-size:18px">${n>0?"+":""}${esc(money(n))}</b></div>`;}).join("")}</div>
     ${transfers.length?`<h3>Settle up</h3><div class="stack" style="gap:6px">${transfers.map(x=>`<div class="row spread small"><span>${esc(fullName(byId(S.players,x.from)))} → ${esc(fullName(byId(S.players,x.to)))}</span><span class="row" style="gap:8px"><b class="num">${esc(money(Math.round(x.amt)))}</b>${member&&(x.from===uid||isAdmin())?`<button class="btn sm" data-act="recordPayment" data-team="${t}" data-from="${x.from}" data-to="${x.to}" data-amt="${Math.round(x.amt)}">Paid</button>`:""}</span></div>`).join("")}</div>`:`<div class="small muted">All square.</div>`}</section>`:""}
   ${keys.length?keys.map(k=>`<div class="sec-head"><h3>${k==="other"?"Other costs":esc(fmtDay(byId(S.sessions,k)?.date||""))}</h3><span class="small muted">${esc(money(bySession[k].filter(e=>e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0)))}</span></div><div class="list">${bySession[k].map(line).join("")}</div>`).join(""):`<div class="empty"><b>No team costs yet</b>When someone books the court, add it here with who paid and who played — the app keeps everyone's balance like Splitwise.</div>`}`;
 }
@@ -1165,7 +1192,7 @@ function sheetClubRules(){
 
 /* ---------------- Invites: admins (and members given invite rights) invite members, guests, or a guest for one session ---------------- */
 const INVITE_KINDS={member:"Club member", guest:"Guest of the club", session:"Guest for one session"};
-const canInvite = ()=> isAdmin() || !!me()?.canInvite;
+const canInvite = ()=> isAdmin() || (!!me() && isActive(me()) && (me().role==="clubAdmin" || !!me().canInvite));
 const inviteCode = ()=> Array.from({length:8},()=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*32)]).join("");
 const inviteLink = code => isDemo ? code : `${location.origin}${location.pathname}?invite=${code}`;
 const inviteValid = inv => inv && (inv.expiresAt||0) > Date.now() && (inv.used||[]).length < (inv.maxUses||1);
@@ -1272,7 +1299,7 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-act],[data-tab],[data-val],[data-pm],[data-wo],[data-team],[data-split],[data-invteam]");
   if(!b) { if(e.target.id==="scrim") closeSheet(); return; }
   const act = b.dataset.act;
-  if(act==="toggleInvite") return;
+  if(act==="toggleInvite" || act==="toggleClubAdmin") return;
   if(b.closest("nav.tabs") && b.dataset.tab){ S._scroll = S._scroll||{}; S._scroll[S.tab]=view.scrollTop; S.tab=b.dataset.tab; render(); return; }
   if(b.closest("[data-rsvp]")){ const sid=b.closest("[data-rsvp]").dataset.rsvp; const v=b.dataset.val; guard(async ()=>{ const s=byId(S.sessions,sid); const rs={...(s?.rsvps||{})}; if(rs[uid]===v) delete rs[uid]; else rs[uid]=v; await store.update("sessions", sid, {rsvps:rs, updatedAt:Date.now()}); }); return; }
   if(b.dataset.split){ b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")!=="true"); return; }
@@ -1325,7 +1352,7 @@ document.addEventListener("click", e => {
     recordPayment: ()=> sheetPayment(b.dataset.team, b.dataset.from, b.dataset.to, +b.dataset.amt||0),
     savePayment: ()=> guard(async ()=>{ const f=$("#payForm"); if(!f.reportValidity()) return; const amt=Math.round(parseFloat($("#pAmount").value.replace(",","."))*100); const from=$("#pFrom").value, to=$("#pTo").value; if(!(amt>0)||from===to){ toast("Check the amount and people"); return; }
       await store.set("expenses", store.newId(), {scope:"team", type:"payment", team:b.dataset.team, from, to, amount:amt, date:$("#pDate").value, title:"Payment", createdBy:uid||null, createdAt:Date.now()}); closeSheet(); toast("Payment recorded"); }),
-    addPlayer: ()=>{ S._adminAdd=true; sheetProfile(null); },
+    addPlayer: ()=>{ S._adminAdd=true; S._forceTeam = isAdmin() ? null : myTeam(); sheetProfile(null); },
     player: ()=> sheetPlayer(id),
     editPlayer: ()=> sheetProfile(id),
     pickPhoto: ()=>{ const i=$("#photoInput"); if(i){ i.value=""; i.click(); } },
@@ -1348,7 +1375,10 @@ document.addEventListener("click", e => {
       }
       closeSheet(); render();
     }),
-    delPlayer: ()=> confirmSheet("Remove player", `Remove <b>${esc(fullName(byId(S.players,id)))}</b> from the challenge? Any pair they're in is removed too.`, "Remove", async ()=>guard(async ()=>{
+    deactivate: ()=> confirmSheet("Set inactive", `<b>${esc(fullName(byId(S.players,id)))}</b> will no longer see sessions, events or the club's activity, but keeps their profile, history and balance. You can reactivate them any time.`, "Set inactive", ()=>guard(async ()=>{ await store.update("players", id, {active:false, deactivatedAt:Date.now(), deactivatedBy:uid||null, updatedAt:Date.now()}); toast("Set to inactive"); })),
+    reactivate: ()=> guard(async ()=>{ await store.update("players", id, {active:true, deactivatedAt:null, deactivatedBy:null, updatedAt:Date.now()}); toast("Active again"); sheetPlayer(id); }),
+    seenJoin: ()=>{ lsSet("ppc_seenJoin", Date.now()); render(); },
+    delPlayer: ()=> confirmSheet("Delete player permanently", `Permanently delete <b>${esc(fullName(byId(S.players,id)))}</b>? Their profile and pairs are removed; costs they were part of stay. Prefer “Set inactive” if they might come back.`, "Delete permanently", async ()=>guard(async ()=>{
       const prs = S.pairs.filter(p=>(p.players||[]).includes(id)); for(const pr of prs){ await store.remove("pairs", pr.id); } await store.remove("players", id); toast("Removed"); })),
     match: ()=> sheetMatch(id),
     saveScore: ()=> guard(async ()=>{
@@ -1391,11 +1421,11 @@ document.addEventListener("click", e => {
     pick: ()=>{ const p=byId(S.players,id); let pk=(S.pick||[]).filter(x=>byId(S.players,x)?.team===p.team); if(pk.includes(id)) pk=pk.filter(x=>x!==id); else pk.push(id); S.pick=pk.slice(-2); render(); },
     makePair: ()=> guard(async ()=>{ const ps=(S.pick||[]).map(x=>byId(S.players,x)).filter(Boolean); if(ps.length!==2) return; await store.set("pairs", store.newId(), {eventId:S.eventId, team:ps[0].team, players:ps.map(p=>p.id), order:S.pairs.filter(p=>p.team===ps[0].team).length, createdAt:Date.now()}); S.pick=[]; toast("Pair created"); }),
     delPair: ()=> guard(async ()=>{ const used=S.matches.some(m=>m.pairA===id||m.pairB===id); if(used){ confirmSheet("Pair is scheduled", "This pair has matches in the schedule. Removing it deletes those matches.", "Remove pair and matches", async ()=>{ for(const m of S.matches.filter(m=>m.pairA===id||m.pairB===id)) await store.remove("matches", m.id); await store.remove("pairs", id); }); } else await store.remove("pairs", id); }),
-    autoPair: ()=> guard(async ()=>{ const t=b.dataset.team; const free=S.players.filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id))); const groups=autoPairs(free, b.dataset.mode).filter(g=>g.length===2); let order=S.pairs.filter(p=>p.team===t).length; for(const g of groups){ await store.set("pairs", store.newId(), {eventId:S.eventId, team:t, players:g.map(p=>p.id), order:order++, createdAt:Date.now()}); } toast(`${groups.length} pair${groups.length===1?"":"s"} made${free.length%2?" · 1 player left over":""}`); }),
+    autoPair: ()=> guard(async ()=>{ const t=b.dataset.team; const free=activePlayers().filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id))); const groups=autoPairs(free, b.dataset.mode).filter(g=>g.length===2); let order=S.pairs.filter(p=>p.team===t).length; for(const g of groups){ await store.set("pairs", store.newId(), {eventId:S.eventId, team:t, players:g.map(p=>p.id), order:order++, createdAt:Date.now()}); } toast(`${groups.length} pair${groups.length===1?"":"s"} made${free.length%2?" · 1 player left over":""}`); }),
     clearPairs: ()=> confirmSheet("Clear pairs", "Remove all pairs? The schedule is cleared too.", "Clear", ()=>guard(async ()=>{ await clearEv("matches"); await clearEv("pairs"); })),
     genFixtures: ()=>{ const go = async ()=> guard(async ()=>{
         if(S.event.format==="rotation"){
-          const A=S.players.filter(p=>p.team==="A"), B=S.players.filter(p=>p.team==="B");
+          const A=activePlayers().filter(p=>p.team==="A"), B=activePlayers().filter(p=>p.team==="B");
           const res=buildRotation(A,B,projectFixtures().total,S.event.courts||1);
           await clearEv("matches"); await clearEv("pairs");
           const ids={}; let order=0; for(const [k,pr] of Object.entries(res.pairs)){ const id=store.newId(); ids[k]=id; await store.set("pairs", id, {...pr, eventId:S.eventId, order:order++, auto:true, createdAt:Date.now()}); }
@@ -1419,6 +1449,7 @@ document.addEventListener("change", async e => {
   if(e.target.id==="evLogoInput" && e.target.files[0]){ try{ S._evLogo = await shrinkPhoto(e.target.files[0], 480, 110000); $("#evLogoPreview").innerHTML=`<img class="avatar lg" style="border-radius:14px" src="${S._evLogo}" alt="">`; }catch(err){ toast("Couldn't read that image"); } }
   if(e.target.id==="photoInput" && e.target.files[0]){ try{ S._photo = await shrinkPhoto(e.target.files[0]); $("#photoPreview").innerHTML=`<img class="avatar lg" src="${S._photo}" alt="">`; }catch(err){ toast("Couldn't read that image"); } }
   if(e.target.id==="evSwitch"){ selectEvent(e.target.value); }
+  if(e.target.dataset.act==="toggleClubAdmin"){ const pid=e.target.dataset.id, v=e.target.checked; guard(async ()=>{ await store.update("players", pid, {role: v?"clubAdmin":null, updatedAt:Date.now()}); toast(v?"Now a club admin":"Club admin role removed"); }); }
   if(e.target.dataset.act==="toggleInvite"){ const pid=e.target.dataset.id, v=e.target.checked; guard(async ()=>{ await store.update("players", pid, {canInvite:v, updatedAt:Date.now()}); toast(v?"Can now invite players":"Invite right removed"); }); }
   if(e.target.id==="demoAdminToggle"){ S.demoAdmin=e.target.checked; lsSet("ppc_demo_admin", S.demoAdmin); render(); }
 });
@@ -1431,7 +1462,7 @@ async function seedDemo(){
   const A=[["Jonas","Weber","1994-03-12"],["Mira","Hoffmann","1989-11-02"],["Tarek","Aydin","1998-07-21"],["Lena","Schulz","1992-01-15"],["Arjun","Mehta","2001-05-08"],["Felix","Brandt","1985-09-30"]];
   const B=[["Sophie","Krüger","1996-04-04"],["Ole","Petersen","1990-12-19"],["Aylin","Demir","1999-08-11"],["Max","Lehmann","1987-06-23"],["Nina","Vogel","1993-10-05"]];
   for(const [f,l,d] of A) await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"A",photo:"",manual:true,createdAt:Date.now()});
-  for(const [f,l,d] of B) await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"B",photo:"",manual:true,createdAt:Date.now()});
+  let bi=0; for(const [f,l,d] of B) { await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"B",photo:"",manual:true,createdAt:Date.now()-bi*36e5, ...(bi===1?{role:"clubAdmin"}:{}), ...(bi===4?{active:false, deactivatedAt:Date.now()-5*864e5}:{})}); bi++; }
   await store.set("events", "main", {type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT, EVENT_KEYS), description:"The big one: LL against SP, best of 3 to 21, 2 courts.", createdAt:Date.now()});
   await store.set("events", "2026-12-12-winter-doubles-social", {name:"Winter doubles social", type:"social", clubs:["B"], date:"2026-12-12", time:"14:00", venue:"Sporthalle Spandau", description:"SP members only: mixed pairs, mulled wine afterwards.", courts:2, legs:1, format:"rotation", matchesPerPlayer:3, bestOf:1, pointsTo:21, houseRules:"", createdAt:Date.now()});
   await store.set("teams", "A", {enabled:true, weekday:6, start:"10:00", end:"11:00", location:"Sporthalle Lichtenrade", address:"", voteDay:4, note:""});
@@ -1464,13 +1495,23 @@ async function boot(){
   // Subscriptions whose query depends on who is reading (club, admin) and which event is selected.
   // The Firestore rules only allow exactly these queries, so a member never receives another club's data.
   window.refreshScopedSubs = function(){
-    const t=myTeam(), adm=isAdmin(); const key1=JSON.stringify([t,adm,!!me()?.canInvite]);
+    const inactive = amInactive(); const t = inactive ? null : myTeam(), adm=isAdmin(); const key1=JSON.stringify([t,adm,canInvite(),inactive]);
     if(S._scope1!==key1){ S._scope1=key1;
       resub("events","events", adm ? null : t ? {field:"clubs", op:"array-contains", value:t} : false, rows=>{ S.events=rows; recomputeEvent(); setTimeout(migrateEvents, 800); });
       resub("sessions","sessions", adm ? null : t ? {field:"team", op:"==", value:t} : false, rows=>{ S.sessions=rows; setTimeout(ensureNextSessions, 500); });
       resub("teams","teams", adm ? null : t ? {id:t} : false, rows=>{ S.teams=rows; setTimeout(ensureNextSessions, 500); });
-      resub("invites","invites", adm ? null : (t && me()?.canInvite) ? {field:"createdBy", op:"==", value:uid} : false, rows=>{ S.invites=rows; });
-      resub("teamExpenses","expenses", adm ? {field:"scope", op:"==", value:"team"} : t ? {field:"team", op:"==", value:t} : false, rows=>{ S.scopedData.teamExpenses=rows.filter(e=>e.scope==="team"); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; });
+      resub("invites","invites", adm ? null : (t && canInvite()) ? {field:"createdBy", op:"==", value:uid} : false, rows=>{ S.invites=rows; });
+      const mergeOwn = ()=>{ const seen=new Set(); S.scopedData.teamExpenses=[...(S.scopedData.own1||[]),...(S.scopedData.own2||[]),...(S.scopedData.own3||[]),...(S.scopedData.own4||[])].filter(e=> e.scope==="team" && !seen.has(e.id) && seen.add(e.id)); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; };
+      if(inactive){ // an inactive member keeps read access to the costs and payments they are part of
+        resub("teamExpenses","expenses", false, ()=>{});
+        resub("own1","expenses", {field:"splitAmong", op:"array-contains", value:uid}, rows=>{ S.scopedData.own1=rows; mergeOwn(); });
+        resub("own2","expenses", {field:"paidBy", op:"==", value:uid}, rows=>{ S.scopedData.own2=rows; mergeOwn(); });
+        resub("own3","expenses", {field:"from", op:"==", value:uid}, rows=>{ S.scopedData.own3=rows; mergeOwn(); });
+        resub("own4","expenses", {field:"to", op:"==", value:uid}, rows=>{ S.scopedData.own4=rows; mergeOwn(); });
+      } else {
+        ["own1","own2","own3","own4"].forEach(k=>{ S.scoped[k]?.(); S.scoped[k]=null; S.scopedData[k]=[]; });
+        resub("teamExpenses","expenses", adm ? {field:"scope", op:"==", value:"team"} : t ? {field:"team", op:"==", value:t} : false, rows=>{ S.scopedData.teamExpenses=rows.filter(e=>e.scope==="team"); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; });
+      }
     }
     const key2=JSON.stringify([S.eventId, !!(t||adm)]);
     if(S._scope2!==key2){ S._scope2=key2; const ok = !!(t||adm) && !!S.eventId;

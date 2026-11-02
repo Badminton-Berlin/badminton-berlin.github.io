@@ -15,10 +15,16 @@ service cloud.firestore {
       return exists(eventDoc()) && get(eventDoc()).data.allowPlayerScores == true;
     }
     function isMember() { return signedIn() && exists(/databases/$(db)/documents/players/$(request.auth.uid)); }
-    function myTeam() { return get(/databases/$(db)/documents/players/$(request.auth.uid)).data.team; }
+    function meDoc() { return get(/databases/$(db)/documents/players/$(request.auth.uid)).data; }
+    function myTeam() { return meDoc().team; }
+    // An inactive member keeps their profile and their own costs, nothing else.
+    function isActiveMember() { return isMember() && (!("active" in meDoc()) || meDoc().active != false); }
+    // Club admin: an active member with role "clubAdmin" for that club. May add/deactivate members, edit the club setup, invite.
+    function isClubAdmin(t) { return isActiveMember() && myTeam() == t && ("role" in meDoc()) && meDoc().role == "clubAdmin"; }
+    function manages(t) { return isAdmin() || isClubAdmin(t); }
     // An event is visible to a member when their club is listed in its clubs array.
     function canSeeEvent(eventId) {
-      return isMember() && exists(/databases/$(db)/documents/events/$(eventId))
+      return isActiveMember() && exists(/databases/$(db)/documents/events/$(eventId))
         && myTeam() in get(/databases/$(db)/documents/events/$(eventId)).data.clubs;
     }
     function inviteDoc(code) { return /databases/$(db)/documents/invites/$(code); }
@@ -57,13 +63,18 @@ service cloud.firestore {
     match /players/{pid} {
       allow read: if signedIn();
       allow create: if signedIn() && validPlayer(request.resource.data)
-                    && ((request.auth.uid == pid && (registrationOpen() || validInvite(request.resource.data))) || isAdmin())
-                    && (isAdmin() || !("canInvite" in request.resource.data));
-      // A player edits their own profile but cannot grant themselves invite rights or upgrade from guest; admins can do everything.
+                    && ((request.auth.uid == pid && (registrationOpen() || validInvite(request.resource.data)))
+                        || isAdmin() || isClubAdmin(request.resource.data.team))
+                    && (isAdmin() || !request.resource.data.keys().hasAny(["canInvite", "role", "active"]));
+      // A player edits their own profile but cannot change their rights or status; a club admin manages status and invite rights
+      // of their club's members; only a global admin assigns the club-admin role.
       allow update: if signedIn() && validPlayer(request.resource.data)
-                    && (isAdmin() || (request.auth.uid == pid
-                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["canInvite", "guest", "sessionOnly", "invite"])));
-      allow delete: if isAdmin() || (signedIn() && request.auth.uid == pid);
+                    && (isAdmin()
+                        || (request.auth.uid == pid
+                            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["canInvite", "guest", "sessionOnly", "invite", "role", "active", "deactivatedAt", "deactivatedBy", "team"]))
+                        || (isClubAdmin(resource.data.team) && request.resource.data.team == resource.data.team
+                            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"])));
+      allow delete: if isAdmin();
     }
 
     // Pairs and schedule: readable by members of the clubs in that event (the app queries by eventId); admins write.
@@ -87,30 +98,33 @@ service cloud.firestore {
     // Expenses: challenge-day costs are managed by admins; team session costs and payments by that team's members.
     match /expenses/{id} {
       allow read: if isAdmin()
-        || (resource.data.scope == "team" && isMember() && resource.data.team == myTeam())
-        || (resource.data.scope != "team" && canSeeEvent(resource.data.eventId));
+        || (resource.data.scope == "team" && isActiveMember() && resource.data.team == myTeam())
+        || (resource.data.scope != "team" && canSeeEvent(resource.data.eventId))
+        || (signedIn() && (resource.data.paidBy == request.auth.uid || resource.data.from == request.auth.uid
+                           || resource.data.to == request.auth.uid
+                           || (("splitAmong" in resource.data) && request.auth.uid in resource.data.splitAmong)));
       allow create, update: if isAdmin()
-        || (isMember() && request.resource.data.scope == "team" && request.resource.data.team == myTeam()
+        || (isActiveMember() && request.resource.data.scope == "team" && request.resource.data.team == myTeam()
             && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 1000000);
       allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
     }
 
     // Events (the challenge and any other event the admins create): everyone reads, admins write.
     match /events/{id} {
-      allow read: if isAdmin() || (isMember() && myTeam() in resource.data.clubs);
+      allow read: if isAdmin() || (isActiveMember() && myTeam() in resource.data.clubs);
       allow write: if isAdmin() && request.resource.data.clubs is list && request.resource.data.clubs.size() > 0;
     }
 
     // Team settings (regular session day/time/place): admins or that team's members.
     match /teams/{t} {
-      allow read: if isAdmin() || (isMember() && myTeam() == t);
-      allow write: if isAdmin() || (isMember() && myTeam() == t);
+      allow read: if isAdmin() || (isActiveMember() && myTeam() == t);
+      allow write: if manages(t);
     }
 
     // Weekly sessions: created/edited by admins or the team's members; votes (rsvps) are part of the document.
     match /sessions/{id} {
-      allow read: if isAdmin() || (isMember() && resource.data.team == myTeam());
-      allow create, update: if isAdmin() || (isMember() && request.resource.data.team == myTeam());
+      allow read: if isAdmin() || (isActiveMember() && resource.data.team == myTeam());
+      allow create, update: if isAdmin() || (isActiveMember() && request.resource.data.team == myTeam());
       allow delete: if isAdmin();
     }
 
@@ -118,8 +132,8 @@ service cloud.firestore {
     // a registering person appends their own uid to "used"; the creator or an admin can delete.
     match /invites/{code} {
       allow read: if signedIn();
-      allow create: if (isAdmin() || (isMember() && get(/databases/$(db)/documents/players/$(request.auth.uid)).data.canInvite == true
-                                      && request.resource.data.team == myTeam()))
+      allow create: if (isAdmin() || isClubAdmin(request.resource.data.team)
+                        || (isActiveMember() && ("canInvite" in meDoc()) && meDoc().canInvite == true && request.resource.data.team == myTeam()))
                     && request.resource.data.createdBy == request.auth.uid
                     && request.resource.data.team in ["A", "B"]
                     && request.resource.data.kind in ["member", "guest", "session"]
