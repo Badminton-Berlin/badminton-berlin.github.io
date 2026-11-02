@@ -819,7 +819,7 @@ function sheetProfile(id){
   openSheet(isNew ? (S._adminAdd?"Add player":"Register") : "Edit profile", `<form id="profForm" class="stack">
     ${isNew && !S._adminAdd ? `<p class="lead" style="margin:0">Your profile is visible to everyone in the challenge. Pick your team, add a photo so people recognise you on court.</p>`:""}
     <div class="photo-pick"><div id="photoPreview">${S._photo?`<img class="avatar lg" src="${S._photo}" alt="">`:`<div class="avatar lg">${ICONS.camera.replace('<svg','<svg style="width:32px;height:32px;stroke:currentColor;fill:none;stroke-width:1.8"')}</div>`}</div>
-      <div class="stack" style="gap:6px"><label class="btn sm" for="photoInput">${S._photo?"Change photo":"Add photo"}<input type="file" id="photoInput" accept="image/*" capture="user"></label>${S._photo?`<button type="button" class="btn ghost sm" data-act="clearPhoto">Remove</button>`:""}<span class="help">Square crop, stored small.</span></div></div>
+      <div class="stack" style="gap:6px"><button type="button" class="btn sm" data-act="pickPhoto">${S._photo?"Change photo":"Add photo"}</button><input type="file" id="photoInput" accept="image/*" style="display:none">${S._photo?`<button type="button" class="btn ghost sm" data-act="clearPhoto">Remove</button>`:""}<span class="help">Square crop, stored small.</span></div></div>
     <div class="row"><label class="f grow">First name<input id="pFirst" required autocomplete="given-name" value="${esc(p.first)}"></label><label class="f grow">Last name<input id="pLast" required autocomplete="family-name" value="${esc(p.last)}"></label></div>
     <label class="f">Date of birth<input type="date" id="pDob" value="${esc(p.dob||"")}" max="${new Date().toISOString().slice(0,10)}"><span class="help">Others see your age; the organiser sees the date.</span></label>
     <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Team</span><div class="seg" id="teamSeg"><button type="button" class="A" data-team="A" aria-pressed="${p.team==="A"}">${esc(S.event.teamA)}</button><button type="button" class="B" data-team="B" aria-pressed="${p.team!=="A"}">${esc(S.event.teamB)}</button></div></div>
@@ -870,6 +870,7 @@ document.addEventListener("click", e => {
     addPlayer: ()=>{ S._adminAdd=true; sheetProfile(null); },
     player: ()=> sheetPlayer(id),
     editPlayer: ()=> sheetProfile(id),
+    pickPhoto: ()=>{ const i=$("#photoInput"); if(i){ i.value=""; i.click(); } },
     clearPhoto: ()=>{ S._photo=""; $("#photoPreview").innerHTML=`<div class="avatar lg">?</div>`; },
     saveProfile: ()=> guard(async ()=>{
       const f=$("#profForm"); if(!f.reportValidity()) return;
