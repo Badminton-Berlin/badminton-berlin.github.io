@@ -186,6 +186,17 @@ have an expiry and a use count. With "Open registration" off, registration is in
   season's end. History/report default to "This season"; members see their past-season rows.
 - Build: `python3 build/build.py` writes `index.html` (live config + VAPID) and `build/demo-mobile.html` (demo mode).
 
+## In-app guide, votes for others, vote deadline
+
+- **How the app works**: `?` icon in the header, a "New here?" card on Home until read (localStorage `ppc_helpSeen`),
+  `vHelp()` with expandable sections (install, register/restore, sessions, money — adapts to split/monthly, events,
+  history, roles, notifications, FAQ, organiser section for admins) and links to the PDF guides.
+- **Votes for others**: club admins / admins open a session (Sessions → *Votes*, or the row on Home) and set Yes / ? / No
+  per member (`data-rsvpfor`); changes are audited.
+- **Vote deadline**: `teams/{t}.lockDay` (weekday) + `lockTime`, or per session `sessions/{id}.lockAt` (ms).
+  `voteDeadline(s)` = the last `lockDay lockTime` before the session start; after it members can't change their vote
+  (buttons hidden, "Votes closed Sat 14:00"), managers still can.
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered

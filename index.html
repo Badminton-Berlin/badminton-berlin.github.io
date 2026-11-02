@@ -224,7 +224,7 @@ a.lnk{color:var(--accent);font-weight:600;text-decoration:none}
       <div class="eyebrow" id="hdrEyebrow">Badminton challenge</div>
       <h1 id="hdrTitle" style="font-size:24px">Preussenpark Challenge</h1>
     </div>
-    <div class="actions"><button class="icon-btn" data-act="clubRules" title="Club rules" aria-label="Club rules"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg></button>
+    <div class="actions"><button class="icon-btn" data-act="help" title="How the app works" aria-label="How the app works"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7"/><path d="M12 17h.01"/></svg></button><button class="icon-btn" data-act="clubRules" title="Club rules" aria-label="Club rules"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg></button>
     <button class="icon-btn" id="meBtn" title="My profile" aria-label="My profile">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
     </button></div>
@@ -500,7 +500,7 @@ function avatar(p, cls=""){ const t=p?.team||""; return (p?.photo && /^data:imag
 function renderTabs(){
   const tabs = amInactive() ? [["home","Home"],["money","Money"]] : [["home","Home"],["sessions","Sessions"],["matches","Matches"],["money","Money"],["players","Players"]];
   if(isAdmin()) tabs.push(["admin","Admin"]);
-  $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${S.tab===k||((S.tab==="event"||S.tab==="history")&&k==="home")||((S.tab==="report"||S.tab==="audit")&&k==="admin")?"page":"false"}">${ICONS[k]}${l}</button>`).join("");
+  $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${S.tab===k||((S.tab==="event"||S.tab==="history"||S.tab==="help")&&k==="home")||((S.tab==="report"||S.tab==="audit")&&k==="admin")?"page":"false"}">${ICONS[k]}${l}</button>`).join("");
 }
 function render(){
   window.refreshScopedSubs?.();
@@ -510,8 +510,8 @@ function render(){
   renderTabs();
   if(S.tab==="admin" && !isAdmin()) S.tab="home";
   if(S.tab==="audit" && !(isAdmin() || isClubAdmin(myTeam()))) S.tab="home";
-  if(amInactive() && !["home","money","history"].includes(S.tab)) S.tab="home";
-  const fn = {home:vHome, event:vEvent, history:vHistory, report:vReport, audit:vAudit, sessions:vSessions, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
+  if(amInactive() && !["home","money","history","help"].includes(S.tab)) S.tab="home";
+  const fn = {home:vHome, help:vHelp, event:vEvent, history:vHistory, report:vReport, audit:vAudit, sessions:vSessions, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
   const sameTab = S._renderedTab===S.tab && S._renderedEv===S.eventId; const keep = sameTab ? view.scrollTop : (S._scroll?.[S.tab] || 0);
   view.innerHTML = fn();
   view.scrollTop = keep; S._renderedTab=S.tab; S._renderedEv=S.eventId;
@@ -582,7 +582,7 @@ function vHome(){
   let sessionCard="";
   if(m){ const s=S.sessions.filter(x=>x.team===m.team && x.date>=today && x.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date))[0];
     if(s){ const v=(s.rsvps||{})[uid]; const yes=Object.entries(s.rsvps||{}).filter(([,x])=>x==="yes").map(([k])=>byId(S.players,k)).filter(Boolean);
-      sessionCard=`<section class="card stack" style="border-color:var(--accent)"><div class="sec-head"><h3>${esc(teamShort(m.team))} plays ${esc(fmtDay(s.date))}</h3><button class="btn ghost sm" data-act="tab" data-tab="sessions">Details</button></div><div class="small muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</div><div class="seg" data-rsvp="${s.id}"><button aria-pressed="${v==="yes"}" data-val="yes">I'm in (${rsvpCount(s,"yes")})</button><button aria-pressed="${v==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${v==="no"}" data-val="no">Can't (${rsvpCount(s,"no")})</button></div>${yes.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}</span></div>`:""}</section>`; }
+      sessionCard=`<section class="card stack" style="border-color:var(--accent)"><div class="sec-head"><h3>${esc(teamShort(m.team))} plays ${esc(fmtDay(s.date))}</h3><button class="btn ghost sm" data-act="tab" data-tab="sessions">Details</button></div><div class="small muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</div>${votesOpen(s)||canManage(m.team)?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${v==="yes"}" data-val="yes">I'm in (${rsvpCount(s,"yes")})</button><button aria-pressed="${v==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${v==="no"}" data-val="no">Can't (${rsvpCount(s,"no")})</button></div>`:`<div class="small" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))} · ${v?`you voted “${v}”`:"you didn't vote"} · yes ${rsvpCount(s,"yes")}</div>`}${voteDeadline(s)&&votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:""}${yes.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}</span></div>`:""}</section>`; }
     else { const cfg=teamCfg(m.team); sessionCard = cfg.enabled ? "" : `<section class="card stack"><h3>Your team</h3><div class="small muted">${esc(teamName(m.team))} hasn't set a regular session yet.</div><button class="btn sm" data-act="editTeamCfg" data-team="${m.team}">Set it up</button></section>`; } }
   // upcoming matches across events (mine first)
   const evOf = x => allEvents().find(e=>e.id===(x.eventId||"main"));
@@ -611,7 +611,7 @@ function vHome(){
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
   const evBlock = (m && m.sessionOnly) ? "" : (!m && !isAdmin() && !isDemo) ? `<section class="card stack"><h3>Events</h3><div class="small muted">Register with your club to see its events, sessions and costs.</div></section>` : eventsList();
-  return banner + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard;
+  return banner + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard;
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
@@ -698,7 +698,7 @@ function sheetPlayer(id){
       <label class="check"><input type="checkbox" data-act="toggleInvite" data-id="${id}" ${p.canInvite?"checked":""}> May invite other players</label>
       ${isAdmin()?`<label class="check"><input type="checkbox" data-act="toggleClubAdmin" data-id="${id}" ${p.role==="clubAdmin"?"checked":""}> Club admin of ${esc(teamName(p.team))} <span class="help">(adds / deactivates members, edits the club setup)</span></label>`:""}
       <div class="row">${p.guest?`<button class="btn sm" data-act="makeMember" data-id="${id}">Make a full member</button>`:""}${isActive(p)?`<button class="btn sm danger" data-act="deactivate" data-id="${id}">Set inactive</button>`:`<button class="btn sm primary" data-act="reactivate" data-id="${id}">Reactivate</button>`}</div></div>` : ""}
-  `, (p.id===uid || canManage(p.team)) ? `${p.id===uid?`<button class="btn" data-act="tab" data-tab="history">My history</button>`:canManage(p.team)?`<button class="btn" data-act="statement" data-id="${id}">Statement</button>`:""}<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()&&p.id!==uid?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Delete</button>`:""}` : "");
+  `, (p.id===uid || canManage(p.team)) ? `${p.id===uid?`<button class="btn ghost" data-act="help">Guide</button><button class="btn" data-act="tab" data-tab="history">My history</button>`:canManage(p.team)?`<button class="btn" data-act="statement" data-id="${id}">Statement</button>`:""}<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()&&p.id!==uid?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Delete</button>`:""}` : "");
 }
 
 /* ---- Matches ---- */
@@ -1017,6 +1017,16 @@ function nextSessionDate(cfg, from=new Date()){
 function fmtDay(iso){ if(!iso) return ""; return new Date(iso+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long", day:"numeric", month:"short"}); }
 function attendees(s){ return Array.isArray(s.attended) ? s.attended : Object.entries(s.rsvps||{}).filter(([,v])=>v==="yes").map(([k])=>k); }
 const rsvpCount=(s,v)=> Object.values(s.rsvps||{}).filter(x=>x===v).length;
+// Vote deadline: per session override (lockAt, ms) or the club rule "votes close <weekday> <time>" before the session.
+function voteDeadline(s){
+  if(!s) return null; if(s.lockAt) return +s.lockAt; const cfg=teamCfg(s.team); if(cfg.lockDay==null || cfg.lockDay==="" ) return null;
+  const [h,mi]=(cfg.lockTime||"14:00").split(":").map(Number); const d=new Date(s.date+"T12:00:00"); const back=((d.getDay() - (+cfg.lockDay)) + 7) % 7;
+  const dl=new Date(d); dl.setDate(d.getDate()-back); dl.setHours(h,mi,0,0);
+  const [sh,sm]=(s.start||"00:00").split(":").map(Number); const startT=new Date(s.date+"T12:00:00"); startT.setHours(sh,sm,0,0);
+  if(dl>startT) dl.setDate(dl.getDate()-7); return dl.getTime();
+}
+const votesOpen = s => { const dl=voteDeadline(s); return !dl || Date.now()<dl; };
+const fmtDL = ms => new Date(ms).toLocaleString("en-GB",{weekday:"short", hour:"2-digit", minute:"2-digit"});
 async function ensureNextSessions(){
   if(!store) return;
   for(const t of ["A","B"]){
@@ -1078,10 +1088,11 @@ function sessionCard(s, full){
   return `<section class="card stack" data-session="${s.id}">
     <div class="sec-head"><div><b style="font-family:var(--f-display);font-size:20px">${esc(fmtDay(s.date))}</b><br><span class="muted small">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</span>${(s.address||s.location)?` <a class="lnk small" href="${mapsLink(s.lat,s.lon,[s.location,s.address].filter(Boolean).join(", "))}" target="_blank" rel="noopener">Directions ↗</a>`:""}</div><span class="pill ${t}">${esc(teamShort(t))}</span></div>
     ${s.note?`<div class="small">${esc(s.note)}</div>`:""}
-    ${canVote?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${mine==="yes"}" data-val="yes">Yes (${rsvpCount(s,"yes")})</button><button aria-pressed="${mine==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${mine==="no"}" data-val="no">No (${rsvpCount(s,"no")})</button></div>`
+    ${canVote && (votesOpen(s)||canManage(t))?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${mine==="yes"}" data-val="yes">Yes (${rsvpCount(s,"yes")})</button><button aria-pressed="${mine==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${mine==="no"}" data-val="no">No (${rsvpCount(s,"no")})</button></div>`
       :`<div class="row small muted"><span>Yes ${rsvpCount(s,"yes")}</span><span>Maybe ${rsvpCount(s,"maybe")}</span><span>No ${rsvpCount(s,"no")}</span></div>`}
+    ${voteDeadline(s)&&s.date>=todayISO()?(votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:`<div class="tiny" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))}${mine?` · you voted “${mine}”`:" · you didn't vote"}${canManage(t)?"":" · ask your club admin to change it"}</div>`):""}
     ${yes.length||maybe.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}${maybe.map(p=>`<span style="opacity:.45">${avatar(p,"sm")}</span>`).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}${maybe.length?` · maybe: ${maybe.map(p=>p.first).join(", ")}`:""}</span></div>`:`<div class="small muted">Nobody has voted yet.</div>`}
-    ${full?`<div class="row spread small"><span class="muted">${Array.isArray(s.attended)?`${s.attended.length} played`:`${yes.length} coming`}${cost?` · cost ${esc(money(cost))}`:""}</span>${member?`<span class="row" style="gap:6px"><button class="btn sm" data-act="attendance" data-id="${s.id}">Who played</button><button class="btn sm" data-act="addTeamExpense" data-team="${t}" data-session="${s.id}">Add cost</button>${canEditTeam(t)?`<button class="icon-btn" data-act="editSession" data-id="${s.id}" aria-label="Edit session">${ICONS.edit}</button>`:""}</span>`:""}</div>`:""}
+    ${full?`<div class="row spread small"><span class="muted">${Array.isArray(s.attended)?`${s.attended.length} played`:`${yes.length} coming`}${cost?` · cost ${esc(money(cost))}`:""}</span>${member?`<span class="row" style="gap:6px">${canManage(t)&&s.date>=todayISO()&&s.status!=="cancelled"?`<button class="btn sm" data-act="session" data-id="${s.id}" title="Enter votes for members who couldn't">Votes</button>`:""}<button class="btn sm" data-act="attendance" data-id="${s.id}">Who played</button><button class="btn sm" data-act="addTeamExpense" data-team="${t}" data-session="${s.id}">Add cost</button>${canEditTeam(t)?`<button class="icon-btn" data-act="editSession" data-id="${s.id}" aria-label="Edit session">${ICONS.edit}</button>`:""}</span>`:""}</div>`:""}
   </section>`;
 }
 function sheetSession(id){
@@ -1089,7 +1100,8 @@ function sheetSession(id){
   const t=s.team, member=canManageTeam(t); const items=S.expenses.filter(e=>e.sessionId===id&&e.type!=="payment");
   const played=attendees(s).map(x=>byId(S.players,x)).filter(Boolean);
   openSheet(fmtDay(s.date), `<div class="stack">
-    <div class="muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"")}${s.status==="cancelled"?' · <b>cancelled</b>':""}</div>
+    <div class="muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"")}${s.status==="cancelled"?' · <b>cancelled</b>':""}${voteDeadline(s)?` · votes ${votesOpen(s)?"close":"closed"} ${esc(fmtDL(voteDeadline(s)))}`:""}</div>
+    ${canManage(t) && s.date>=todayISO() && s.status!=="cancelled" ? (()=>{ const ms=S.players.filter(p=>p.team===t && isActive(p) && (!p.sessionOnly || p.sessionOnly===id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))); return `<div><h3>Votes</h3><div class="tiny muted" style="margin:4px 0 6px">As ${isAdmin()?"admin":"club admin"} you can enter a vote for anyone who couldn't do it themselves. Tap again to clear.</div><div class="stack" style="gap:6px">${ms.map(p=>{ const v=(s.rsvps||{})[p.id]; return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fullName(p))}${p.id===uid?" (you)":""}</span></span><div class="seg" data-rsvpfor="${p.id}" data-session="${id}" style="flex:none;padding:2px"><button aria-pressed="${v==="yes"}" data-val="yes" style="padding:6px 10px">Yes</button><button aria-pressed="${v==="maybe"}" data-val="maybe" style="padding:6px 10px">?</button><button aria-pressed="${v==="no"}" data-val="no" style="padding:6px 10px">No</button></div></div>`; }).join("")}</div></div>`; })() : ""}
     <div><h3>Played (${played.length})</h3><div class="row" style="gap:6px;margin-top:6px">${played.map(p=>avatar(p,"sm")).join("")||'<span class="small muted">No attendance recorded</span>'}</div></div>
     <div><h3>Costs</h3>${items.length?`<div class="list" style="margin-top:6px">${items.map(e=>`<button class="item" data-act="teamExpense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>paid by ${esc(fullName(byId(S.players,e.paidBy)))} · split ${(e.splitAmong||[]).length} ways</span></div><span class="amt">${esc(money(e.amount))}</span></button>`).join("")}</div>`:'<div class="small muted">No costs logged.</div>'}</div>
   </div>`, member?`<button class="btn" data-act="attendance" data-id="${id}">Who played</button><button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
@@ -1104,6 +1116,8 @@ function sheetTeamCfg(t){
     <label class="f">Address<input id="cAddr" value="${esc(c.address||"")}" placeholder="Askanierring 150, 13585 Berlin"></label>
     <div class="row"><button type="button" class="btn sm" data-act="geoTeam">Find on map</button><span class="tiny muted" id="cfgMapLabel">${c.lat!=null?"Pin set — drag to adjust":"Shows a map and gives players a directions link"}</span></div>
     <div class="map" id="cfgMap"></div>
+    <div class="row"><label class="f grow">Votes close<select id="cLockDay"><option value="">No deadline</option>${WEEKDAYS.map((d,i)=>`<option value="${i}" ${c.lockDay!=null&&c.lockDay!==""&&+c.lockDay===i?"selected":""}>${d}</option>`).join("")}</select></label><label class="f grow">at<input type="time" id="cLockTime" value="${esc(c.lockTime||"14:00")}"></label></div>
+    <div class="tiny muted" style="margin-top:-6px">After the deadline members can't change their vote; club admins can still enter votes for them.</div>
     <label class="f">Send the "who's coming?" reminder on<select id="cVote">${WEEKDAYS.map((d,i)=>`<option value="${i}" ${(+c.voteDay??5)===i?"selected":""}>${d} morning</option>`).join("")}</select></label>
     <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">How costs are shared</span><div class="seg" id="feeSeg"><button type="button" data-fee="split" aria-pressed="${c.feeMode!=="monthly"}">Split per session</button><button type="button" data-fee="monthly" aria-pressed="${c.feeMode==="monthly"}">Monthly fee</button></div>
       <div id="feeBox" class="stack" style="gap:8px" ${c.feeMode==="monthly"?"":"hidden"}><div class="row"><label class="f grow">Fee per member per month (${esc(S.event.currency||"€")})<input id="cFee" inputmode="decimal" value="${c.feeAmount?(c.feeAmount/100).toFixed(2):""}" placeholder="10.00"></label><label class="f grow">Charged from<input type="month" id="cFeeFrom" value="${esc(c.feeFrom||monthKey(todayISO()))}"></label></div>
@@ -1125,6 +1139,7 @@ function sheetEditSession(id, team){
     <label class="f">Address<input id="sAddr" value="${esc(s.address||"")}"></label>
     <div class="row"><button type="button" class="btn sm" data-act="geoSession">Find on map</button><span class="tiny muted" id="sessMapLabel">${s.lat!=null?"Pin set":""}</span></div>
     <div class="map" id="sessMap"></div>
+    <label class="f">Votes close (this session only)<input type="datetime-local" id="sLock" value="${s.lockAt?esc(new Date(s.lockAt - new Date(s.lockAt).getTimezoneOffset()*60000).toISOString().slice(0,16)):""}"><span class="help">${(()=>{ const dl=id?voteDeadline({...s, lockAt:null}):null; return dl?`Club rule: ${esc(fmtDL(dl))}. Leave empty to use it.`:"Leave empty for the club rule (or no deadline)."; })()}</span></label>
     <label class="f">Note<textarea id="sNote">${esc(s.note||"")}</textarea></label>
     ${id?`<label class="check"><input type="checkbox" id="sCancel" ${s.status==="cancelled"?"checked":""}> Cancelled (no session this week)</label>`:""}
   </form>`, `<button class="btn primary" data-act="saveSession" data-id="${id||""}" data-team="${s.team}">Save</button>${id&&isAdmin()?`<button class="btn danger" data-act="delSession" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
@@ -1597,6 +1612,86 @@ function pastSeasonsCard(pid){
   return `<section class="stack"><div class="sec-head"><h3>Past seasons</h3></div><div class="list">${mine.map(({s,row})=>`<button class="item" data-act="season" data-id="${s.id}"><div class="t"><b>Season ${esc(s.name)}</b><span>${row.played} sessions · ${row.offered?Math.round(row.played/row.offered*100):0}% attendance · paid ${esc(money(row.paid))} · share ${esc(money(row.share))}</span></div><span class="amt muted">›</span></button>`).join("")}</div></section>`;
 }
 
+/* ---------------- In-app guide: "How the app works" ---------------- */
+const helpSeen = ()=> !!lsGet("ppc_helpSeen", false);
+function helpCard(){
+  if(helpSeen() || S.tab!=="home") return "";
+  return `<section class="card stack" style="border-color:var(--team-b);gap:8px"><div class="sec-head"><h3>New here?</h3><button class="icon-btn" data-act="dismissHelp" aria-label="Dismiss">${ICONS.x}</button></div>
+    <div class="small">Vote for the weekly session, see who's coming, split the court money fairly, follow the events and your matches. Two minutes of reading explains all of it.</div>
+    <div class="row"><button class="btn primary" data-act="help">How the app works</button><button class="btn ghost" data-act="dismissHelp">Got it</button></div></section>`;
+}
+function helpSection(title, body, open){ return `<details class="card" ${open?"open":""} style="padding:12px 14px"><summary style="font-family:var(--f-display);font-weight:700;font-size:18px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">${esc(title)}<span class="muted" style="font-size:14px">▾</span></summary><div class="stack" style="gap:8px;margin-top:10px;font-size:15px;line-height:1.45">${body}</div></details>`; }
+function vHelp(){
+  const m=me(); const t=myTeam(); const cfg=t?teamCfg(t):null; const cur=S.event.currency||"€";
+  const mode = cfg && cfg.feeMode==="monthly" ? "monthly" : "split";
+  const li = items => `<ul style="margin:0;padding-left:20px">${items.map(x=>`<li>${x}</li>`).join("")}</ul>`;
+  const step = items => `<ol style="margin:0;padding-left:22px">${items.map(x=>`<li style="margin-bottom:4px">${x}</li>`).join("")}</ol>`;
+  const docs = `https://hiteshmalhotra2583.github.io/badminton-challenge/docs/`;
+  return `
+  <div class="row spread"><button class="btn ghost sm" data-act="tab" data-tab="home">← Home</button><span class="row" style="gap:6px"><a class="btn sm" href="${docs}player-guide.pdf" target="_blank" rel="noopener">Player guide PDF</a>${isAdmin()||(t&&isClubAdmin(t))?`<a class="btn sm" href="${docs}admin-guide.pdf" target="_blank" rel="noopener">Admin guide PDF</a>`:""}</span></div>
+  <section class="card stack" style="gap:6px"><h2 style="margin:0">How the app works</h2><div class="small muted">One link for both clubs. You register once; from then on you only see what belongs to your club: the weekly session, the court money, the events your club takes part in, the matches and the rules. Everything updates live on everyone's phone.</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><span class="pill">Home = overview</span><span class="pill">Sessions = vote &amp; play</span><span class="pill">Matches = schedule &amp; scores</span><span class="pill">Money = who owes what</span><span class="pill">Players = who's who</span></div></section>
+  ${helpSection("1 · Install it like an app", li([
+    "<b>iPhone / iPad</b>: open the link in <b>Safari</b>, tap Share → <b>Add to Home Screen</b>. Notifications only work from the home-screen icon.",
+    "<b>Android</b>: open the link in Chrome → <b>Install app</b> (or ⋮ → Add to Home screen).",
+    "Nothing to download from a store; updates arrive by themselves. Pull down or reopen the app if something looks old."]), !m)}
+  ${helpSection("2 · Register, and keep your profile safe", [step([
+    "Tap <b>Register</b>, add a photo, your name, date of birth and pick your club. Came through an invite link? The club is already set.",
+    `Your profile is tied to the phone you register on. Open your profile (photo top right) → <b>Link Google account</b>. Then on a new phone: open the app → <b>Restore</b> → same Google account, and everything is back.`,
+    "On iPhone the home-screen app has its own storage: register and link Google in Safari first, then tap <b>Restore</b> inside the home-screen app."]),
+    `<div class="tiny muted">Others see your age, not your date of birth. Only your club's admins can change your status.</div>`].join(""), !m)}
+  ${helpSection("3 · The weekly session: vote, play, tick who played", [step([
+    `The app creates the next session automatically${cfg&&cfg.enabled?` (${esc(teamShort(t))}: ${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)})`:""} and sends a “who's coming?” reminder on the club's vote day.`,
+    `On Home or in Sessions tap <b>I'm in</b>, <b>Maybe</b> or <b>Can't</b>. Everyone sees who is coming, so the right number of courts gets booked.${cfg&&cfg.lockDay!=null&&cfg.lockDay!==""?` <b>Votes close ${WEEKDAYS[cfg.lockDay]} ${esc(cfg.lockTime||"14:00")}</b> — after that only a club admin can enter or change a vote.`:" Your club may set a deadline after which only a club admin can change votes."}`,
+    "<b>Directions ↗</b> opens the hall in Maps.",
+    "After playing, anyone ticks <b>Who played?</b>. That list is what the court cost is split between — so tick it honestly."]),
+    `<div class="tiny muted">Changed your mind? Tap your vote again to remove it, or pick another. Sessions → Reminders → <b>Enable notifications</b> once per phone.</div>`].join(""), true)}
+  ${helpSection("4 · Money", mode==="monthly" ? [
+    `<div>Your club runs on a <b>monthly fee</b>${cfg.feeAmount?` of <b>${esc(money(cfg.feeAmount))}</b> per member per month`:""}.</div>`, step([
+    "Every member owes the fee each month from the month they joined (guests pay nothing). Money shows your balance and how many months are due.",
+    `Tap <b>Pay</b> to pay the treasurer${cfg.treasurer?` (${esc(fullName(byId(S.players,cfg.treasurer)))})`:""} by PayPal or bank transfer (QR code for your banking app), then <b>Mark as paid</b>. The treasurer confirms with <b>Paid</b>.`,
+    "Court and shuttles are paid from the club pot. If you advance a cost yourself, add it with you as “paid by” — the club owes it back to you."]),
+    `<div class="tiny muted">The club pot and all fees outstanding are visible to everyone in the club.</div>`].join("") : [step([
+    `Whoever paid the court or shuttles taps <b>Add cost</b> with the amount and who shares it (defaults to who played). The app keeps a running balance per person — like Splitwise.`,
+    "Money → your club shows who owes whom with the fewest payments. Tap <b>Pay</b>: it opens PayPal with the amount filled in, or shows the IBAN and a QR code for your banking app. Then <b>Mark as paid</b>.",
+    "Add your own <b>PayPal.me name or IBAN</b> once (Edit profile → Payment details) so people can pay you back in one tap."]),
+    `<div class="tiny muted">Club money and challenge-day money are kept apart; both show on Home. Only you, your club and the admins see your balance.</div>`].join(""), true)}
+  ${helpSection("5 · Events, matches and scores", li([
+    "Home lists the events your club takes part in. Tap one for the poster, the score between the clubs, the countdown, the format and standings.",
+    "The organiser builds pairs and generates the schedule; under <b>Matches</b> your own matches are outlined, and the next ones show on Home under <b>Upcoming</b> next to your club sessions.",
+    `Scores: ${S.event.allowPlayerScores?"tap your match, enter each game with − / +, <b>Save score</b>":"the organiser (or a scorer per court) enters them; ask if you may enter your own"}. A game goes to ${S.event.pointsTo||21} with a two-point lead (cap ${(S.event.pointsTo||21)+9}); a match is best of ${S.event.bestOf||3}. Standings, the player table and the head-to-head grid update live.`,
+    "<b>Rules</b>: the document icon in the header shows your club's rules; game rules and the PDF guides are linked from there and from the event."]))}
+  ${helpSection("6 · Your history and statements", li([
+    "Profile → <b>My history</b> (or Home → Money → My history): sessions played, attendance rate, what you paid and your share, charts, every session and match.",
+    "<b>Statement (PDF)</b> opens a printable statement — use Print → Save as PDF (on a phone: Print → Share → Save to Files).",
+    "When the organiser closes a season, history shows the new season by default; switch to <b>All time</b> or open a past season."]))}
+  ${helpSection("7 · Who can do what", li([
+    "<b>Member</b>: votes, ticks attendance, adds costs and payments for their club, enters scores if allowed, sees club events and everyone's player stats.",
+    "<b>Guest</b>: same as a member for the sessions they are invited to; a one-session guest only sees that session. Guests pay no monthly fee.",
+    "<b>Club admin</b> (★): adds and deactivates members of their club, edits the club setup (day, place, rules, money mode), invites people, sees the club report and activity log.",
+    "<b>Admin</b>: everything, for both clubs — events, pairs, schedule, challenge costs, seasons, backups.",
+    "<b>Inactive</b>: set by a club admin when someone leaves; they keep their own history and balance but see no club activity until reactivated."]))}
+  ${helpSection("8 · Notifications", li([
+    "Sessions → Reminders → <b>Enable notifications</b>. You get the “who's coming?” vote reminder on your club's vote day.",
+    "iPhone: only from the home-screen app (iOS 16.4 or newer). Android: works in Chrome and from the home screen.",
+    "Admins are also told when someone new joins."]))}
+  ${helpSection("9 · Questions people ask", li([
+    "<b>I voted but see nothing under Upcoming?</b> Reopen the app — it refreshes itself. Your vote is saved the moment you tap it.",
+    "<b>I registered twice / on two phones.</b> Ask your club admin to set the extra profile inactive; use <b>Restore</b> with your Google account next time.",
+    "<b>I don't see the challenge event.</b> Your club must be listed in the event's clubs (organiser → Admin → Event → Edit).",
+    "<b>Can I see other people's balances?</b> Within your club, yes — the whole point is that everyone sees the same fair numbers.",
+    "<b>Something is wrong with a cost.</b> Tap it; whoever added it (or an admin) can edit or delete it. Every change is in the admins' activity log."]))}
+  ${isAdmin()||(t&&isClubAdmin(t)) ? helpSection("For organisers", li([
+    "<b>Club setup</b> (Sessions → Edit): weekly slot, hall with map pin, reminder day, <b>vote deadline</b> (e.g. Saturday 14:00), club rules, cost mode (split per session or monthly fee with a treasurer).",
+    "<b>Votes for others</b>: open a session (Sessions → <b>Votes</b>, or the row on Home) and set Yes / ? / No for any member who couldn't — also after the deadline. Each change is in the activity log.",
+    "<b>Members</b>: Players → tap a name → Manage: invite rights, set inactive / reactivate, make a guest a full member. Invite links: Players → Invite someone (member, guest or one session).",
+    "<b>Events</b> (Admin): create an event, choose the clubs taking part, format (fixed pairs or rotation so everyone plays the same number of matches), courts, best-of, points. Then pairs → Generate schedule → scores on match day.",
+    "<b>Reports</b> (Admin → Open club report; club admins from the Home club card): KPIs, charts, member table, sessions, events, CSVs and a printable club statement.",
+    "<b>Activity log</b>, <b>Backup (JSON)</b> and <b>Close season</b> live on the Admin tab. Link your Google account so admin rights survive a new phone.",
+    `See the <a href="${docs}admin-guide.pdf" target="_blank" rel="noopener">admin guide (PDF)</a> for the full walkthrough.`])) : ""}
+  <div class="tiny muted" style="text-align:center;padding:8px 0 16px">Questions? Ask your club organiser.</div>`;
+}
+
 /* ---- Push notifications (FCM) ---- */
 const VAPID_KEY = "BEp83PZFT1pHb74CA8jrUv9zsXW81I-Dp2IcVHNYy230YI0rBSbFWIfGNouHHTwlLki0o-lgtTD9hvPhJqIAVow";
 async function registerPush(interactive){
@@ -1636,7 +1731,8 @@ document.addEventListener("click", e => {
   const act = b.dataset.act;
   if(act==="toggleInvite" || act==="toggleClubAdmin") return;
   if(b.closest("nav.tabs") && b.dataset.tab){ S._scroll = S._scroll||{}; S._scroll[S.tab]=view.scrollTop; S.tab=b.dataset.tab; render(); return; }
-  if(b.closest("[data-rsvp]")){ const sid=b.closest("[data-rsvp]").dataset.rsvp; const v=b.dataset.val; guard(async ()=>{ const s=byId(S.sessions,sid); const rs={...(s?.rsvps||{})}; if(rs[uid]===v) delete rs[uid]; else rs[uid]=v; await store.update("sessions", sid, {rsvps:rs, updatedAt:Date.now()}); }); return; }
+  if(b.closest("[data-rsvpfor]")){ const box=b.closest("[data-rsvpfor]"); const pid=box.dataset.rsvpfor, sid=box.dataset.session, v=b.dataset.val; guard(async ()=>{ const s=byId(S.sessions,sid); if(!s || !canManage(s.team)) return; const rs={...(s.rsvps||{})}; const cleared = rs[pid]===v; if(cleared) delete rs[pid]; else rs[pid]=v; await store.update("sessions", sid, {rsvps:rs, updatedAt:Date.now()}); box.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", !cleared && x===b)); if(pid!==uid) audit("attendance", `${fmtDay(s.date)}: vote for ${fullName(byId(S.players,pid))} set to ${cleared?"none":v}`, {team:s.team}); }); return; }
+  if(b.closest("[data-rsvp]")){ const sid=b.closest("[data-rsvp]").dataset.rsvp; const v=b.dataset.val; guard(async ()=>{ const s=byId(S.sessions,sid); if(s && !votesOpen(s) && !canManage(s.team)){ toast("Votes closed "+fmtDL(voteDeadline(s))+" — ask your club admin"); return; } const rs={...(s?.rsvps||{})}; if(rs[uid]===v) delete rs[uid]; else rs[uid]=v; await store.update("sessions", sid, {rsvps:rs, updatedAt:Date.now()}); }); return; }
   if(b.dataset.split){ b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")!=="true"); return; }
   if(b.dataset.invteam){ S.inviteTeam=b.dataset.invteam; sheetInvite(); return; }
   if(b.closest("[data-seg]")){ const key=b.closest("[data-seg]").dataset.seg; S[key]=b.dataset.val; render(); return; }
@@ -1651,6 +1747,8 @@ document.addEventListener("click", e => {
     tab: ()=>{ S.tab=b.dataset.tab; render(); },
     register: ()=> sheetProfile(null),
     rules: sheetRules,
+    help: ()=>{ lsSet("ppc_helpSeen", true); if($("#sheetHost").children.length) closeSheet(); S._scroll=S._scroll||{}; S._scroll.help=0; S.tab="help"; render(); view.scrollTop=0; },
+    dismissHelp: ()=>{ lsSet("ppc_helpSeen", true); render(); },
     clubRules: sheetClubRules,
     geoTeam: ()=> geoLookup("cAddr","cfgMap","_geo"),
     geoSession: ()=> geoLookup("sAddr","sessMap","_geoS"),
@@ -1664,12 +1762,12 @@ document.addEventListener("click", e => {
     useInviteCode: ()=> guard(async ()=>{ const code=($("#inviteCodeInput").value||"").trim().toUpperCase(); if(!code){ toast("Enter the code"); return; } lsSet("ppc_invite", code); await loadPendingInvite(); if(S.pendingInvite && !S.pendingInvite.missing && inviteValid(S.pendingInvite)) sheetProfile(null); else toast("That code isn't valid"); }),
     makeMember: ()=> guard(async ()=>{ await store.update("players", id, {guest:false, sessionOnly:null, updatedAt:Date.now()}); audit("member", `${fullName(byId(S.players,id))} made a full member`, {team:byId(S.players,id)?.team}); toast("Now a full member"); sheetPlayer(id); }),
     editTeamCfg: ()=> sheetTeamCfg(b.dataset.team),
-    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:S._geo?S._geo.lat:null, lon:S._geo?S._geo.lon:null, feeMode:S._feeMode||teamCfg(t).feeMode||"split", feeAmount:Math.round(parseFloat(($("#cFee").value||"0").replace(",","."))*100)||0, feeFrom:$("#cFeeFrom").value||monthKey(todayISO()), treasurer:$("#cTreasurer").value||null, updatedAt:Date.now(), updatedBy:uid||null}); audit("team", `${teamShort(t)} setup saved (${(S._feeMode||teamCfg(t).feeMode)==="monthly"?"monthly fee":"split per session"})`, {team:t}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
+    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, lockDay:$("#cLockDay").value===""?null:+$("#cLockDay").value, lockTime:$("#cLockTime").value||"14:00", note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:S._geo?S._geo.lat:null, lon:S._geo?S._geo.lon:null, feeMode:S._feeMode||teamCfg(t).feeMode||"split", feeAmount:Math.round(parseFloat(($("#cFee").value||"0").replace(",","."))*100)||0, feeFrom:$("#cFeeFrom").value||monthKey(todayISO()), treasurer:$("#cTreasurer").value||null, updatedAt:Date.now(), updatedBy:uid||null}); audit("team", `${teamShort(t)} setup saved (${(S._feeMode||teamCfg(t).feeMode)==="monthly"?"monthly fee":"split per session"})`, {team:t}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
     addSession: ()=> sheetEditSession(null, b.dataset.team),
     editSession: ()=> sheetEditSession(id),
     session: ()=> sheetSession(id),
     saveSession: ()=> guard(async ()=>{ const f=$("#sessForm"); if(!f.reportValidity()) return; const t=b.dataset.team; const date=$("#sDate").value;
-      const data={team:t, date, start:$("#sStart").value||"08:30", end:$("#sEnd").value||"09:30", location:$("#sLoc").value.trim(), address:$("#sAddr").value.trim(), lat:S._geoS?S._geoS.lat:null, lon:S._geoS?S._geoS.lon:null, note:$("#sNote").value.trim(), updatedAt:Date.now()};
+      const data={team:t, date, start:$("#sStart").value||"08:30", end:$("#sEnd").value||"09:30", location:$("#sLoc").value.trim(), address:$("#sAddr").value.trim(), lat:S._geoS?S._geoS.lat:null, lon:S._geoS?S._geoS.lon:null, note:$("#sNote").value.trim(), lockAt:$("#sLock").value?new Date($("#sLock").value).getTime():null, updatedAt:Date.now()};
       if(id){ data.status=$("#sCancel")?.checked?"cancelled":"open"; await store.update("sessions", id, data); }
       else { let nid=`${t}_${date}`; if(byId(S.sessions,nid)) nid+="_"+rnd().slice(0,4); await store.set("sessions", nid, {...data, rsvps:{}, attended:null, status:"open", auto:false, createdAt:Date.now(), createdBy:uid||null}); }
       closeSheet(); toast("Session saved"); }),
