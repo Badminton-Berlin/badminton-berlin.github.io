@@ -122,6 +122,27 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
   split across everyone or one team. Everyone sees the total, their own share and
   balance, and a "settle up" list of who pays whom.
 
+## Weekly team sessions, votes, reminders and team money
+
+- **Sessions tab**: each team sets its regular slot (day, time, place) under "Regular session".
+  The app then creates the next session automatically; members vote **Yes / Maybe / No**
+  (also from a card on Home), see who's coming, and afterwards tick **Who played**.
+  One-off sessions and cancellations are handled with Edit / Add a one-off session.
+- **Reminder notifications**: a GitHub Actions job (`.github/workflows/notify.yml`,
+  `scripts/notify.mjs`) runs every morning at 06:00 UTC and, on each team's vote day
+  (default Friday), sends a push notification "SP: who's playing Sunday?" to every device
+  that enabled notifications (Sessions → Reminders → Enable notifications; iPhone needs the
+  app on the Home Screen first). It also creates the session if it doesn't exist yet.
+  One-time setup: Firebase → Project settings → Service accounts → **Generate new private
+  key**, then GitHub repo → Settings → Secrets and variables → Actions → **New repository
+  secret** named `FIREBASE_SERVICE_ACCOUNT` with the JSON file's content. Test it with
+  Actions → "Weekly session reminder" → Run workflow → force = true.
+- **Team money (Splitwise-style)**: Money → "LL sessions" / "SP sessions". Any team member
+  adds a cost (court, shuttles), who paid, and who shares it (defaults to who played that
+  session). Balances show who is owed / owes what, "Settle up" suggests the fewest payments,
+  and **Record payment** clears a debt when someone pays a team-mate back. Challenge-day
+  costs stay under "Challenge" (admins only).
+
 ## Changing teams, dates, rules
 
 Admin → Event → Edit: event name, date/time, venue, team names and short codes, number

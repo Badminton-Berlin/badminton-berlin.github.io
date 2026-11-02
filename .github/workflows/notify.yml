@@ -1,0 +1,22 @@
+name: Weekly session reminder
+on:
+  schedule:
+    - cron: "0 6 * * *"   # every day 06:00 UTC = 07:00 Berlin (winter) / 08:00 (summer); the script only sends on each team's vote day
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Send now even if today is not the vote day (test)"
+        default: "false"
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save firebase-admin@13
+      - run: node scripts/notify.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FORCE: ${{ inputs.force }}

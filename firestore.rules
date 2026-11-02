@@ -14,6 +14,8 @@ service cloud.firestore {
     function playerScoresAllowed() {
       return exists(eventDoc()) && get(eventDoc()).data.allowPlayerScores == true;
     }
+    function isMember() { return signedIn() && exists(/databases/$(db)/documents/players/$(request.auth.uid)); }
+    function myTeam() { return get(/databases/$(db)/documents/players/$(request.auth.uid)).data.team; }
     function validPlayer(d) {
       return d.first is string && d.first.size() > 0 && d.first.size() <= 40
         && d.last is string && d.last.size() <= 40
@@ -66,10 +68,32 @@ service cloud.firestore {
             && request.resource.data.walkover == resource.data.walkover);
     }
 
-    // Expenses: everyone sees them, admins manage them.
+    // Expenses: challenge-day costs are managed by admins; team session costs and payments by that team's members.
     match /expenses/{id} {
       allow read: if signedIn();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin()
+        || (isMember() && request.resource.data.scope == "team" && request.resource.data.team == myTeam()
+            && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 1000000);
+      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
+    }
+
+    // Team settings (regular session day/time/place): admins or that team's members.
+    match /teams/{t} {
+      allow read: if signedIn();
+      allow write: if isAdmin() || (isMember() && myTeam() == t);
+    }
+
+    // Weekly sessions: created/edited by admins or the team's members; votes (rsvps) are part of the document.
+    match /sessions/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || (isMember() && request.resource.data.team == myTeam());
+      allow delete: if isAdmin();
+    }
+
+    // Push notification tokens: each device writes its own; only admins (and the reminder job) read them.
+    match /pushTokens/{u} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == u);
+      allow write: if signedIn() && request.auth.uid == u;
     }
 
     match /{document=**} { allow read, write: if false; }
