@@ -513,7 +513,10 @@ function render(){
   if(amInactive() && !["home","money","history","help"].includes(S.tab)) S.tab="home";
   const fn = {home:vHome, help:vHelp, event:vEvent, history:vHistory, report:vReport, audit:vAudit, sessions:vSessions, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
   const sameTab = S._renderedTab===S.tab && S._renderedEv===S.eventId; const keep = sameTab ? view.scrollTop : (S._scroll?.[S.tab] || 0);
+  // Keep expanded sections (<details>) as they were when the same view is re-rendered after a data update.
+  const openKeys = sameTab ? new Set([...view.querySelectorAll("details[open]")].map(d=>d.querySelector("summary")?.textContent.trim())) : null;
   view.innerHTML = fn();
+  if(openKeys) view.querySelectorAll("details").forEach(d=>{ d.open = openKeys.has(d.querySelector("summary")?.textContent.trim()); });
   view.scrollTop = keep; S._renderedTab=S.tab; S._renderedEv=S.eventId;
   renderDemoBar();
 }
