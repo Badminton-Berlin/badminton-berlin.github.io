@@ -160,7 +160,7 @@ label.f textarea{min-height:70px;resize:vertical}
 
 .table{width:100%;border-collapse:collapse;font-size:14px}
 .table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:6px;border-bottom:1px solid var(--line);font-weight:600}
-.table td{padding:8px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.table td{padding:8px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .table td:first-child,.table th:first-child{padding-left:2px}.table td:last-child,.table th:last-child{padding-right:2px}
 .table tr:last-child td{border-bottom:0}
 .table td.n{text-align:right;font-family:var(--f-display);font-size:17px;font-weight:600}
@@ -255,6 +255,8 @@ const DEFAULT_EVENT = {
   teamB: "Spandau/Staaken", shortB: "SP",
   courts: 2,
   legs: 1,
+  format: "fixed",
+  matchesPerPlayer: 3,
   bestOf: 3,
   pointsTo: 21,
   registrationOpen: true,
@@ -355,6 +357,45 @@ function buildFixtures(pairsA, pairsB, legs, courts){
   }
   const out=[]; rounds.forEach((r,ri)=> r.forEach((m,ci)=> out.push({...m, round:ri+1, court:ci+1, order:out.length, games:[], walkover:null, status:"scheduled"})));
   return out;
+}
+function buildRotation(A, B, k, courts){
+  // Davis Cup style rotation: k rounds; in each round as many matches as both teams can field,
+  // partners and opponents rotate, players with the fewest matches always play first.
+  const m = Math.min(Math.floor(A.length/2), Math.floor(B.length/2)); if(!m) return {pairs:[], matches:[]};
+  const played={}, partner={}, faced={}, pairs={};
+  const key=(x,y)=> x<y ? x+"|"+y : y+"|"+x;
+  const shuffle=a=>{ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+  const pick = team => shuffle([...team]).sort((a,b)=>(played[a.id]||0)-(played[b.id]||0)).slice(0,2*m);
+  const matchings = ps => { // all perfect matchings of ps (≤12 players)
+    if(!ps.length) return [[]]; const [h,...rest]=ps, out=[];
+    for(let i=0;i<rest.length;i++){ const others=rest.filter((_,j)=>j!==i); for(const mm of matchings(others)) out.push([[h,rest[i]],...mm]); }
+    return out; };
+  const pairUp = ps => { let best=null, bc=Infinity; for(const mm of shuffle(matchings(ps))){ const c=mm.reduce((t,[x,y])=>t+(partner[key(x.id,y.id)]||0)**2,0); if(c<bc){bc=c;best=mm;} } return best; };
+  const perms = a => a.length<=1 ? [a] : a.flatMap((x,i)=> perms([...a.slice(0,i),...a.slice(i+1)]).map(p=>[x,...p]));
+  const rounds=[];
+  const grow=f=> f? 3**f-1 : 0; // repeating the same person twice costs far more than once
+  const oppCost=(pa,pb)=>{ let c=0; pa.forEach((x,i)=> x.forEach(p=> pb[i].forEach(q=> c+=grow(faced[key(p.id,q.id)])))); return c; };
+  const partCost=mm=> mm.reduce((t,[x,y])=>t+grow(partner[key(x.id,y.id)]),0);
+  for(let r=0;r<k;r++){
+    const sa=pick(A), sb=pick(B); let pa, best;
+    if(m<=4){ // joint search over pairings of both teams and opponent assignment (partner repeats cost double)
+      let bc=Infinity; const MA=shuffle(matchings(sa)), MB=shuffle(matchings(sb));
+      for(const ma of MA){ const ca=partCost(ma)*2; if(ca>bc) continue; for(const mb of MB){ const cb=ca+partCost(mb)*2; if(cb>bc) continue; for(const perm of perms(mb)){ const c=cb+oppCost(ma,perm); if(c<bc){bc=c;pa=ma;best=perm;} } } }
+    } else {
+      pa=pairUp(sa); const pb=pairUp(sb); let bc=Infinity;
+      for(const perm of shuffle(perms(pb))){ const c=oppCost(pa,perm); if(c<bc){bc=c;best=perm;} }
+    }
+    const round=[];
+    pa.forEach((x,i)=>{ const y=best[i]; const ka="A:"+key(x[0].id,x[1].id), kb="B:"+key(y[0].id,y[1].id);
+      pairs[ka] ||= {team:"A", players:[x[0].id,x[1].id]}; pairs[kb] ||= {team:"B", players:[y[0].id,y[1].id]};
+      round.push({pairKeyA:ka, pairKeyB:kb, leg:1});
+      [...x,...y].forEach(p=> played[p.id]=(played[p.id]||0)+1);
+      partner[key(x[0].id,x[1].id)]=(partner[key(x[0].id,x[1].id)]||0)+1; partner[key(y[0].id,y[1].id)]=(partner[key(y[0].id,y[1].id)]||0)+1;
+      x.forEach(p=> y.forEach(q=> faced[key(p.id,q.id)]=(faced[key(p.id,q.id)]||0)+1)); });
+    for(let i=0;i<round.length;i+=Math.max(1,courts)) rounds.push(round.slice(i,i+Math.max(1,courts)));
+  }
+  const out=[]; rounds.forEach((r,ri)=> r.forEach((mm,ci)=> out.push({...mm, round:ri+1, court:ci+1, order:out.length, games:[], walkover:null, status:"scheduled"})));
+  return {pairs, matches:out, played};
 }
 function standings(){
   const t = {A:{mw:0,ml:0,gw:0,gl:0,pf:0,pa:0}, B:{mw:0,ml:0,gw:0,gl:0,pf:0,pa:0}};
@@ -458,7 +499,7 @@ function vHome(){
     <div class="stat"><b>${done}/${S.matches.length}</b><span>Played</span></div>
   </div>
   <section class="card stack">
-    <div class="sec-head"><h3>Format</h3><span class="pill">2 v 2 doubles</span></div>
+    <div class="sec-head"><h3>Format</h3><span class="pill">${S.event.format==="rotation"?"rotation · 2 v 2":"fixed pairs · 2 v 2"}</span></div>
     <p class="lead" style="margin:0">${projectedText(projected)}</p>
     <button class="btn block" data-act="rules">Rules &amp; how we play</button>
   </section>
@@ -466,6 +507,11 @@ function vHome(){
   ${S.matches.length ? `<section class="card stack"><h3>Standings</h3>${standingsTable()}</section>` : ""}`;
 }
 function projectFixtures(){
+  if(S.event.format==="rotation"){
+    const nA=S.players.filter(p=>p.team==="A").length, nB=S.players.filter(p=>p.team==="B").length, k=S.event.matchesPerPlayer||3;
+    const per=Math.min(Math.floor(nA/2),Math.floor(nB/2)), total=per*k, courts=S.event.courts||1;
+    return {rotation:true, nA, nB, k, per, total, rounds: total?k*Math.ceil(per/courts):0, perA: nA?2*total/nA:0, perB: nB?2*total/nB:0};
+  }
   const pA = S.pairs.filter(p=>p.team==="A").length || Math.floor(S.players.filter(p=>p.team==="A").length/2);
   const pB = S.pairs.filter(p=>p.team==="B").length || Math.floor(S.players.filter(p=>p.team==="B").length/2);
   const legs = S.event.legs||1; const total = pA*pB*legs;
@@ -473,6 +519,12 @@ function projectFixtures(){
   return {pA,pB,legs,total,rounds, perA:pB*legs, perB:pA*legs};
 }
 function projectedText(p){
+  if(p.rotation){
+    if(!p.per) return "Rotation format: once both teams have at least 2 registered players, the app builds rounds in which partners and opponents change every match, so everyone plays the same number of matches.";
+    const even = p.nA===2*p.per && p.nB===2*p.per;
+    const share = t=>{ const n=t==="A"?p.nA:p.nB, x=t==="A"?p.perA:p.perB; const out=n-2*p.per; return Number.isInteger(x) ? `${x} each` : `${Math.floor(x)}–${Math.ceil(x)} each (${n} players, ${out} sit${out===1?"s":""} out each round in turn)`; };
+    return `<b>Rotation format</b> (Davis Cup style, no fixed pairs): ${p.k} round${p.k>1?"s":""} of ${p.per} match${p.per>1?"es":""} = <b>${p.total} matches</b>. ${esc(S.event.shortA)} players play ${share("A")}, ${esc(S.event.shortB)} players ${share("B")}. Partners and opponents rotate; on ${S.event.courts} court${S.event.courts>1?"s":""} that is ${p.rounds} playing round${p.rounds>1?"s":""}.${even?"":""}`;
+  }
   if(!p.pA || !p.pB) return "Once both teams have at least 2 registered players, the app works out how many matches you need. Each pair from one team plays every pair of the other team.";
   const fixed = S.pairs.length>0;
   return `${fixed?"":"Based on registrations so far, "}${esc(S.event.shortA)} ${fixed?"has":"can field"} <b>${p.pA} pair${p.pA>1?"s":""}</b> and ${esc(S.event.shortB)} <b>${p.pB} pair${p.pB>1?"s":""}</b>, so the challenge is <b>${p.total} match${p.total>1?"es":""}</b>${p.legs>1?` (${p.legs} legs)`:""}: each ${esc(S.event.shortA)} pair plays ${p.perA}, each ${esc(S.event.shortB)} pair plays ${p.perB}. On ${S.event.courts} court${S.event.courts>1?"s":""} that is about ${p.rounds} round${p.rounds>1?"s":""}.`;
@@ -491,7 +543,7 @@ function vPlayers(){
     const ps = S.players.filter(p=>p.team===t).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
     if(!ps.length) return `<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`;
     return `<div class="list">${ps.map(p=>{ const s=playerStats[p.id]; const pr=S.pairs.find(x=>(x.players||[]).includes(p.id)); const a=age(p.dob);
-      return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</b><span>${a!=null?a+" yrs":""}${pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>`;
+      return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</b><span>${a!=null?a+" yrs":""}${S.event.format==="rotation" ? ` · ${S.matches.filter(m=>[m.pairA,m.pairB].some(id=>(byId(S.pairs,id)?.players||[]).includes(p.id))).length} matches` : pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>`;
   };
   if(S.filter==="stats") return `
   <div class="seg" data-seg="filter"><button class="A" aria-pressed="false" data-val="A">${esc(S.event.shortA)}</button><button class="B" aria-pressed="false" data-val="B">${esc(S.event.shortB)}</button><button aria-pressed="true" data-val="stats">Stats</button></div>
@@ -516,10 +568,11 @@ function sheetPlayer(id){
   const p = byId(S.players,id); if(!p) return;
   const {playerStats} = standings(); const s = playerStats[id]||{w:0,l:0,sp:0};
   const pr = S.pairs.find(x=>(x.players||[]).includes(id));
-  const mine = S.matches.filter(m=> pr && (m.pairA===pr.id||m.pairB===pr.id)).sort((a,b)=>a.order-b.order);
+  const myPairIds = S.pairs.filter(x=>(x.players||[]).includes(id)).map(x=>x.id);
+  const mine = S.matches.filter(m=> myPairIds.includes(m.pairA)||myPairIds.includes(m.pairB)).sort((a,b)=>a.order-b.order);
   const a = age(p.dob);
   openSheet(`${esc(fullName(p))}`, `
-    <div class="row" style="gap:16px">${avatar(p,"lg")}<div class="stack" style="gap:4px"><span class="pill ${p.team}">${esc(teamName(p.team))}</span><span class="muted">${a!=null?a+" years":""}${isAdmin()&&p.dob?` · born ${esc(fmtDate(p.dob))}`:""}</span><span class="muted small">${pr?`Pair: ${esc(pairLabel(pr))}`:"Not paired yet"}</span></div></div>
+    <div class="row" style="gap:16px">${avatar(p,"lg")}<div class="stack" style="gap:4px"><span class="pill ${p.team}">${esc(teamName(p.team))}</span><span class="muted">${a!=null?a+" years":""}${isAdmin()&&p.dob?` · born ${esc(fmtDate(p.dob))}`:""}</span><span class="muted small">${S.event.format==="rotation" ? "Partners rotate each match" : pr?`Pair: ${esc(pairLabel(pr))}`:"Not paired yet"}</span></div></div>
     <div class="stats"><div class="stat"><b>${s.w}</b><span>Won</span></div><div class="stat"><b>${s.l}</b><span>Lost</span></div><div class="stat"><b>${mine.length}</b><span>Matches</span></div></div>
     ${mine.length?`<div class="stack">${mine.map(matchCard).join("")}</div>`:""}
   `, (p.id===uid || isAdmin()) ? `<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Remove</button>`:""}` : "");
@@ -528,8 +581,8 @@ function sheetPlayer(id){
 /* ---- Matches ---- */
 function matchCard(m){
   const r = matchResult(m); const pa=byId(S.pairs,m.pairA), pb=byId(S.pairs,m.pairB);
-  const myPair = S.pairs.find(x=>(x.players||[]).includes(uid));
-  const mine = myPair && (m.pairA===myPair.id || m.pairB===myPair.id);
+  const myIds = S.pairs.filter(x=>(x.players||[]).includes(uid)).map(x=>x.id);
+  const mine = myIds.includes(m.pairA) || myIds.includes(m.pairB);
   const games = (m.games||[]).filter(g=>g && (g[0]!==""||g[1]!=="") );
   const side = (k, pr)=>`<div class="side ${k} ${r.winner?(r.winner===k?"win":"lose"):""}"><div class="names"><span class="stripe"></span><span>${esc(pairLabel(pr))}</span>${r.winner===k?'<span class="pill good">W</span>':""}</div><div class="games">${games.map(g=>{const w=gameWinner(g); const v=k==="A"?g[0]:g[1]; return `<b class="${w?(w===k?"w":"l"):""}">${v===""||v==null?"·":v}</b>`;}).join("")}${m.walkover===k?'<b class="w">w/o</b>':""}</div></div>`;
   const status = r.done ? `<span class="pill good">Final</span>` : games.length ? `<span class="pill live">Live</span>` : `<span class="pill">Court ${m.court||"?"}</span>`;
@@ -538,12 +591,12 @@ function matchCard(m){
 function vMatches(){
   if(!S.matches.length){
     const p = projectFixtures();
-    return `<div class="empty"><b>No fixtures yet</b>${isAdmin()?"Build the pairs in Admin, then generate the schedule.":"The organiser hasn't generated the schedule yet."}<br><span class="small">${projectedText(p).replace(/<[^>]+>/g,"")}</span></div>`;
+    return `<div class="empty"><b>No fixtures yet</b>${isAdmin()?(S.event.format==="rotation"?"Generate the schedule in Admin once both teams have registered.":"Build the pairs in Admin, then generate the schedule."):"The organiser hasn't generated the schedule yet."}<br><span class="small">${projectedText(p).replace(/<[^>]+>/g,"")}</span></div>`;
   }
   const f = S.filterM||"all";
   let ms = [...S.matches].sort((a,b)=>a.order-b.order);
-  const myPair = S.pairs.find(x=>(x.players||[]).includes(uid));
-  if(f==="mine" && myPair) ms = ms.filter(m=>m.pairA===myPair.id||m.pairB===myPair.id);
+  const myIds = S.pairs.filter(x=>(x.players||[]).includes(uid)).map(x=>x.id); const myPair = myIds.length;
+  if(f==="mine") ms = ms.filter(m=>myIds.includes(m.pairA)||myIds.includes(m.pairB));
   if(f==="open") ms = ms.filter(m=>!matchResult(m).done);
   if(f==="done") ms = ms.filter(m=>matchResult(m).done);
   const rounds = [...new Set(ms.map(m=>m.round))].sort((a,b)=>a-b);
@@ -629,19 +682,19 @@ function vAdmin(){
   return `
   <section class="card stack">
     <div class="sec-head"><h3>Event</h3><button class="btn sm" data-act="editEvent">Edit</button></div>
-    <div class="small"><b>${esc(e.name)}</b><br>${esc(fmtDate(e.date))}${e.time?" · "+esc(e.time):""} · ${esc(e.venue)}<br>${e.courts} court${e.courts>1?"s":""} · best of ${e.bestOf} to ${e.pointsTo} · ${e.legs} leg${e.legs>1?"s":""}</div>
+    <div class="small"><b>${esc(e.name)}</b><br>${esc(fmtDate(e.date))}${e.time?" · "+esc(e.time):""} · ${esc(e.venue)}<br>${e.courts} court${e.courts>1?"s":""} · best of ${e.bestOf} to ${e.pointsTo} · ${e.format==="rotation"?`rotation, ${e.matchesPerPlayer||3} matches per player`:`fixed pairs, ${e.legs} leg${e.legs>1?"s":""}`}</div>
     <div class="row"><span class="pill ${e.registrationOpen?"good":"warn"}">Registration ${e.registrationOpen?"open":"closed"}</span><span class="pill ${e.allowPlayerScores?"good":""}">Players ${e.allowPlayerScores?"can":"can't"} enter scores</span></div>
   </section>
-  <section class="card stack">
+  ${e.format==="rotation" ? `<section class="card stack"><div class="sec-head"><h3>Pairs</h3><span class="pill">rotation</span></div><div class="small muted">Pairs are formed automatically for every match so partners rotate. Switch to “Fixed pairs” in Event settings to pick pairs by hand.</div></section>` : `<section class="card stack">
     <div class="sec-head"><h3>Pairs</h3>${picked.length===2?`<button class="btn primary sm" data-act="makePair">Pair ${esc(picked[0].first)} + ${esc(picked[1].first)}</button>`:`<span class="small muted">${picked.length===1?"Tap a team-mate to pair":"Tap two names to pair them"}</span>`}</div>
     <div class="pairgrid">${pairCol("A")}${pairCol("B")}</div>
     ${S.pairs.length?`<button class="btn ghost sm danger" data-act="clearPairs">Clear all pairs</button>`:""}
-  </section>
+  </section>`}
   <section class="card stack">
     <div class="sec-head"><h3>Schedule</h3><span class="pill">${S.matches.length} matches</span></div>
     <p class="small muted" style="margin:0">${projectedText(proj)}</p>
     <div class="row">
-      <button class="btn primary" data-act="genFixtures" ${!proj.pA||!proj.pB||!S.pairs.length?"disabled":""}>${S.matches.length?"Regenerate":"Generate"} schedule</button>
+      <button class="btn primary" data-act="genFixtures" ${(proj.rotation ? !proj.per : (!proj.pA||!proj.pB||!S.pairs.length))?"disabled":""}>${S.matches.length?"Regenerate":"Generate"} schedule</button>
       <button class="btn" data-act="addMatch" ${S.pairs.length<2?"disabled":""}>Add match</button>
       ${S.matches.length?`<button class="btn ghost danger" data-act="clearMatches">Clear</button>`:""}
     </div>
@@ -669,7 +722,7 @@ function sheetRules(){
     ${e.houseRules?`<div class="banner info" style="display:block;white-space:pre-wrap;font-weight:500">${esc(e.houseRules)}</div>`:""}
     ${h("The challenge")}
     ${ul([
-      `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2). Every pair plays every pair of the other team${e.legs>1?` ${e.legs} times`:" once"}.`,
+      e.format==="rotation" ? `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2), Davis Cup style rotation: there are no fixed pairs. Each round every available player plays once, with a new partner and new opponents whenever possible, so everyone plays ${e.matchesPerPlayer||3} matches (one fewer in rounds where a team has an odd number and someone sits out in turn).` : `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2). Every pair plays every pair of the other team${e.legs>1?` ${e.legs} times`:" once"}.`,
       `A match is <b>best of ${e.bestOf} game${e.bestOf>1?"s":""}</b> to <b>${T}</b> points (first to ${need} game${need>1?"s":""} wins).`,
       `The team with more match wins takes the challenge. Tie-break: games difference, then points difference, then one deciding match between pairs chosen by the captains.`,
       `Pairs and the schedule are set by the organiser in this app. Check your round and court under <b>Matches</b>; be at the court when the previous match finishes.`,
@@ -725,7 +778,9 @@ function sheetEvent(){
     <label class="f">Venue<input id="evVenue" value="${esc(e.venue)}"></label>
     <div class="row"><label class="f grow">Team A<input id="evTeamA" value="${esc(e.teamA)}"></label><label class="f" style="width:84px">Short<input id="evShortA" maxlength="4" value="${esc(e.shortA)}"></label></div>
     <div class="row"><label class="f grow">Team B<input id="evTeamB" value="${esc(e.teamB)}"></label><label class="f" style="width:84px">Short<input id="evShortB" maxlength="4" value="${esc(e.shortB)}"></label></div>
-    <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
+    <label class="f">Schedule format<select id="evFormat"><option value="fixed" ${e.format!=="rotation"?"selected":""}>Fixed pairs — every pair plays every opposing pair</option><option value="rotation" ${e.format==="rotation"?"selected":""}>Rotation (Davis Cup style) — partners change, everyone plays equally</option></select></label>
+    <label class="f">Matches per player (rotation format)<input type="number" id="evMpp" min="1" max="12" value="${e.matchesPerPlayer||3}"><span class="help">Number of rounds; in each round everyone who can play, plays once.</span></label>
+    <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs (fixed pairs)<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
     <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
     <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>
     <label class="f">House rules (shown at the top of the Rules page)<textarea id="evRules" placeholder="e.g. Bring your own racket. Nylon shuttles, Yonex Mavis 350. Doors open 9:30.">${esc(e.houseRules||"")}</textarea></label>
@@ -836,14 +891,23 @@ document.addEventListener("click", e => {
     delExpense: ()=> confirmSheet("Delete expense", "Delete this expense?", "Delete", ()=>guard(async()=>{ await store.remove("expenses", id); closeSheet(); })),
     editEvent: sheetEvent,
     saveEvent: ()=> guard(async ()=>{
-      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked, houseRules:$("#evRules").value.trim()};
+      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, format:$("#evFormat").value, matchesPerPlayer:+$("#evMpp").value||3, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked, houseRules:$("#evRules").value.trim()};
       await store.set("settings","event",data); closeSheet(); toast("Event saved"); }),
     pick: ()=>{ const p=byId(S.players,id); let pk=(S.pick||[]).filter(x=>byId(S.players,x)?.team===p.team); if(pk.includes(id)) pk=pk.filter(x=>x!==id); else pk.push(id); S.pick=pk.slice(-2); render(); },
     makePair: ()=> guard(async ()=>{ const ps=(S.pick||[]).map(x=>byId(S.players,x)).filter(Boolean); if(ps.length!==2) return; await store.set("pairs", store.newId(), {team:ps[0].team, players:ps.map(p=>p.id), order:S.pairs.filter(p=>p.team===ps[0].team).length, createdAt:Date.now()}); S.pick=[]; toast("Pair created"); }),
     delPair: ()=> guard(async ()=>{ const used=S.matches.some(m=>m.pairA===id||m.pairB===id); if(used){ confirmSheet("Pair is scheduled", "This pair has matches in the schedule. Removing it deletes those matches.", "Remove pair and matches", async ()=>{ for(const m of S.matches.filter(m=>m.pairA===id||m.pairB===id)) await store.remove("matches", m.id); await store.remove("pairs", id); }); } else await store.remove("pairs", id); }),
     autoPair: ()=> guard(async ()=>{ const t=b.dataset.team; const free=S.players.filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id))); const groups=autoPairs(free, b.dataset.mode).filter(g=>g.length===2); let order=S.pairs.filter(p=>p.team===t).length; for(const g of groups){ await store.set("pairs", store.newId(), {team:t, players:g.map(p=>p.id), order:order++, createdAt:Date.now()}); } toast(`${groups.length} pair${groups.length===1?"":"s"} made${free.length%2?" · 1 player left over":""}`); }),
     clearPairs: ()=> confirmSheet("Clear pairs", "Remove all pairs? The schedule is cleared too.", "Clear", ()=>guard(async ()=>{ await store.removeAll("matches"); await store.removeAll("pairs"); })),
-    genFixtures: ()=>{ const go = async ()=> guard(async ()=>{ const pa=S.pairs.filter(p=>p.team==="A"&&p.players?.length===2).sort((a,b)=>(a.order||0)-(b.order||0)), pb=S.pairs.filter(p=>p.team==="B"&&p.players?.length===2).sort((a,b)=>(a.order||0)-(b.order||0)); const fx=buildFixtures(pa,pb,S.event.legs||1,S.event.courts||1); await store.removeAll("matches"); for(const m of fx) await store.set("matches", store.newId(), {...m, createdAt:Date.now()}); toast(`${fx.length} matches scheduled`); S.tab="matches"; render(); });
+    genFixtures: ()=>{ const go = async ()=> guard(async ()=>{
+        if(S.event.format==="rotation"){
+          const A=S.players.filter(p=>p.team==="A"), B=S.players.filter(p=>p.team==="B");
+          const res=buildRotation(A,B,S.event.matchesPerPlayer||3,S.event.courts||1);
+          await store.removeAll("matches"); await store.removeAll("pairs");
+          const ids={}; let order=0; for(const [k,pr] of Object.entries(res.pairs)){ const id=store.newId(); ids[k]=id; await store.set("pairs", id, {...pr, order:order++, auto:true, createdAt:Date.now()}); }
+          for(const m of res.matches){ const {pairKeyA,pairKeyB,...rest}=m; await store.set("matches", store.newId(), {...rest, pairA:ids[pairKeyA], pairB:ids[pairKeyB], createdAt:Date.now()}); }
+          toast(`${res.matches.length} matches scheduled`); S.tab="matches"; render(); return;
+        }
+        const pa=S.pairs.filter(p=>p.team==="A"&&p.players?.length===2).sort((a,b)=>(a.order||0)-(b.order||0)), pb=S.pairs.filter(p=>p.team==="B"&&p.players?.length===2).sort((a,b)=>(a.order||0)-(b.order||0)); const fx=buildFixtures(pa,pb,S.event.legs||1,S.event.courts||1); await store.removeAll("matches"); for(const m of fx) await store.set("matches", store.newId(), {...m, createdAt:Date.now()}); toast(`${fx.length} matches scheduled`); S.tab="matches"; render(); });
       if(S.matches.length) confirmSheet("Regenerate schedule", `This replaces the current ${S.matches.length} matches and any scores entered.`, "Regenerate", go); else go(); },
     clearMatches: ()=> confirmSheet("Clear schedule", "Delete all matches and scores?", "Clear", ()=>guard(()=>store.removeAll("matches"))),
     addMatch: sheetAddMatch,

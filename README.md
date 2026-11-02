@@ -92,6 +92,13 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
 - **Pairs** (Admin tab): tap two team-mates to pair them, or use **Random pairs** /
   **Pair by age** (oldest with youngest). A left-over player shows as unpaired and can
   substitute.
+- **Format** (Admin → Event → Schedule format):
+  - *Fixed pairs* — you build pairs, every pair plays every opposing pair (1 or 2 legs).
+  - *Rotation (Davis Cup style)* — no fixed pairs. You set matches per player (= rounds);
+    each round everyone who can play plays once, the app rotates partners and opponents
+    so nobody repeats a partner or opponent until it's unavoidable, and players who have
+    to sit out (odd team sizes) take turns. Everyone ends with the same number of matches
+    (±1 when team sizes are unequal).
 - **Schedule**: the app tells you the number of matches from the pairs you have — every
   pair plays every pair of the other team (choose 1 or 2 legs). **Generate schedule**
   builds rounds so no pair plays twice in a round and spreads them over your courts.
