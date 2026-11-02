@@ -153,6 +153,15 @@ have an expiry and a use count. With "Open registration" off, registration is in
   pairs, attendance and cost splits. Reactivate from the player sheet; permanent delete is global-admin only.
 - Admins/club admins see a **New members** card on Home, and the hourly notification job pushes "X joined <club>".
 
+## History and reports
+
+- **My history** (profile → My history, or Home → Money → My history): sessions played, attendance rate, paid/share/balance,
+  monthly charts, every session played with the member's share, all matches across events, CSV export.
+- **Club report** (Admin → Open club report; club admins from Home/Sessions): KPIs, players per session, spend per month and
+  by category, member table (played, rate, paid, share, balance, last played), sessions list, event results, attendance and
+  money CSV exports. Period filter 30/90/365 days or all.
+- Pairs, matches and challenge costs are now loaded for every event the reader can see (not only the selected one).
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered

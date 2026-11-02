@@ -10,7 +10,7 @@
 
 <h2>Contents</h2>
 <div class="toc">
-  <div>1 · How it fits together</div><div>2 · Admins and rights</div><div>3 · Global settings</div><div>4 · Inviting people</div><div>5 · Club sessions and reminders</div><div>6 · Events</div><div>7 · Pairs and the schedule</div><div>8 · Match day: scores</div><div>9 · Money</div><div>10 · Behind the scenes (Firebase, GitHub)</div><div>11 · Troubleshooting</div>
+  <div>1 · How it fits together</div><div>2 · Admins and rights</div><div>3 · Global settings</div><div>4 · Inviting people</div><div>5 · Club sessions and reminders</div><div>6 · Events</div><div>7 · Pairs and the schedule</div><div>8 · Match day: scores</div><div>9 · Money</div><div>Reports</div><div>10 · Behind the scenes (Firebase, GitHub)</div><div>11 · Troubleshooting</div>
 </div>
 
 <h2>1. How it fits together</h2>
@@ -102,6 +102,17 @@
 <p><b>Challenge costs</b> (Money → the event): admins add court hire, shuttles, prizes; split across everyone or one club; everyone sees total, per-head share, their balance and a settle-up list.</p>
 <p><b>Club session costs</b> (Money → "LL/SP sessions"): any member adds a cost with who paid and who shares it (defaults to who played that session); payments between members are recorded with <b>Record payment</b> or the <b>Paid</b> button on a suggestion. Balances are per club and never mix with the challenge.</p>
 <div class="fig"><figure><img src="shots/money-event.png" alt=""><figcaption>Challenge money.</figcaption></figure><figure><img src="shots/money-team.png" alt=""><figcaption>Club money with balances and settle-up.</figcaption></figure></div>
+
+<h2>Reports</h2>
+<p>Admin → <b>Open club report</b> (club admins: the "Report" button on their Home club card or on the Sessions tab). Choose the club and the period (30 / 90 days, 1 year, all).</p>
+<div class="fig"><figure><img src="shots/report.png" alt=""><figcaption>KPIs, players per session, spend per month and by category.</figcaption></figure><figure><img src="shots/report2.png" alt=""><figcaption>Member table: played, attendance rate, paid, share, balance, last played; sessions list; event results.</figcaption></figure></div>
+<ul>
+  <li><b>KPIs</b>: active members, sessions held, average players per session, spend, spend per session, outstanding money (sum of negative balances).</li>
+  <li><b>Charts</b>: players per session (last 12), spend per month (6 months) with category totals.</li>
+  <li><b>Members</b>: tap a name to open the player sheet; ★ marks club admins; inactive members are greyed.</li>
+  <li><b>Export</b>: <b>Attendance CSV</b> (one row per member, one column per session with 1 = played or the vote) and <b>Money CSV</b> (every cost and payment). Open in Excel or Google Sheets.</li>
+  <li>Every member has their own <b>My history</b> page (player guide, section 5).</li>
+</ul>
 
 <h2>10. Behind the scenes</h2>
 <table><tr><th>Piece</th><th>Where</th><th>Notes</th></tr>
