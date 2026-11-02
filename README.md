@@ -1,7 +1,7 @@
 # Preussenpark Challenge app — setup guide
 
 A phone-first web app for the Lichtenrade/Lankwitz vs Spandau/Staaken 2v2 badminton
-challenge (3 January 2027, Preussenpark, Berlin). Team members open one link, register
+challenge (16 January 2027, Preussenpark, Berlin). Team members open one link, register
 with name, date of birth and photo, and see pairs, the match schedule, live scores and
 expenses. Admins control the event settings, pairs, schedule, scores and money.
 

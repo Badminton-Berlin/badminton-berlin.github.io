@@ -1,7 +1,7 @@
 {
   "name": "Preussenpark Challenge",
   "short_name": "Challenge",
-  "description": "LL vs SS badminton challenge: registration, pairs, schedule, scores and expenses.",
+  "description": "LL vs SP badminton challenge: registration, pairs, schedule, scores and expenses.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
