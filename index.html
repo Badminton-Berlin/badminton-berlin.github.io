@@ -507,8 +507,9 @@ function render(){
   if(S.tab==="admin" && !isAdmin()) S.tab="home";
   if(amInactive() && !["home","money","history"].includes(S.tab)) S.tab="home";
   const fn = {home:vHome, event:vEvent, history:vHistory, report:vReport, sessions:vSessions, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
+  const sameTab = S._renderedTab===S.tab && S._renderedEv===S.eventId; const keep = sameTab ? view.scrollTop : (S._scroll?.[S.tab] || 0);
   view.innerHTML = fn();
-  view.scrollTop = S._scroll?.[S.tab] || 0;
+  view.scrollTop = keep; S._renderedTab=S.tab; S._renderedEv=S.eventId;
   renderDemoBar();
 }
 function renderDemoBar(){
@@ -1635,7 +1636,8 @@ async function boot(){
   pickupInviteFromUrl(); setTimeout(loadPendingInvite, 1500);
   if(!isDemo && "Notification" in window && Notification.permission==="granted") setTimeout(()=>registerPush(false), 2000);
   setTimeout(()=>{ if(first){ first=false; render(); } }, 3000);
-  setInterval(()=>{ if(S.tab==="home" && !$("#sheetHost").children.length) render(); }, 60000);
+  let lastScroll=0; view.addEventListener("scroll", ()=>{ lastScroll=Date.now(); }, {passive:true});
+  setInterval(()=>{ if(S.tab==="home" && !$("#sheetHost").children.length && Date.now()-lastScroll>3000) render(); }, 60000);
   if("serviceWorker" in navigator && !isDemo && location.protocol==="https:"){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
 }
 // Admin bootstrap banner (Firebase only): first opener can claim admin when no admins doc exists.
