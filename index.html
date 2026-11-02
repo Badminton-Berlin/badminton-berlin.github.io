@@ -1212,9 +1212,10 @@ async function showMap(elId, lat, lon, opts={}){
   if(lat==null||lon==null) return;
   try{ await loadLeaflet(); const el=document.getElementById(elId); if(!el||!window.L) return; if(el._map){ el._map.remove(); el._map=null; }
     el.style.minHeight="170px";
-    const map=L.map(el,{zoomControl:!!opts.interactive, dragging:!!opts.interactive, scrollWheelZoom:false, touchZoom:!!opts.interactive, doubleClickZoom:!!opts.interactive, attributionControl:false}).setView([lat,lon], 15);
+    const map=L.map(el,{zoomControl:!!opts.interactive, dragging:!!opts.interactive, scrollWheelZoom:false, touchZoom:!!opts.interactive, doubleClickZoom:!!opts.interactive, attributionControl:false}).setView([lat,lon], opts.zoom||15);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
     const m=L.marker([lat,lon],{draggable:!!opts.interactive}).addTo(map);
+    if(opts.interactive && opts.onMove) map.on("click", ev=>{ m.setLatLng(ev.latlng); opts.onMove(ev.latlng.lat, ev.latlng.lng); });
     if(opts.onMove) m.on("dragend", ()=>{ const p=m.getLatLng(); opts.onMove(p.lat,p.lng); });
     el._map=map; setTimeout(()=>map.invalidateSize(),250);
   }catch(e){ console.warn("map", e); }
@@ -1224,8 +1225,14 @@ const placeLine=(o)=> (o.location||o.address) ? `<span class="muted small">${esc
 async function geoLookup(inputId, mapId, holder){
   const q=$("#"+inputId)?.value.trim(); if(!q){ toast("Type an address first"); return; }
   toast("Searching…");
-  try{ const g=await geocode(q); S[holder]={lat:g.lat, lon:g.lon}; const lbl=$("#"+mapId+"Label"); if(lbl) lbl.textContent=g.label; await showMap(mapId, g.lat, g.lon, {interactive:true, onMove:(la,lo)=>{ S[holder]={lat:la, lon:lo}; }}); toast("Found — drag the pin to adjust"); }
-  catch(e){ toast(e.message==="Address not found" ? "Address not found — try adding the city" : "Map search isn't available right now"); }
+  const lbl=$("#"+mapId+"Label"); const onMove=(la,lo)=>{ S[holder]={lat:la, lon:lo}; };
+  try{ let g; try{ g=await geocode(q); }catch(e){ if(e.message!=="Address not found" || /berlin/i.test(q)) throw e; g=await geocode(q+", Berlin"); }
+    S[holder]={lat:g.lat, lon:g.lon}; if(lbl) lbl.textContent=g.label; await showMap(mapId, g.lat, g.lon, {interactive:true, onMove}); toast("Found — drag the pin to adjust"); }
+  catch(e){
+    if(e.message==="Address not found"){ // unknown to OpenStreetMap: open the map on Berlin and let the organiser place the pin by hand
+      const cur=S[holder]; const la=cur?cur.lat:52.52, lo=cur?cur.lon:13.405; S[holder]={lat:la, lon:lo}; if(lbl) lbl.textContent="Address not on the map — drag the pin onto the hall (zoom in with two fingers)";
+      try{ await showMap(mapId, la, lo, {interactive:true, onMove, zoom:cur?15:11}); }catch(_){} toast("Not found on the map — drag the pin to the hall"); }
+    else toast("Map search isn't available right now"); }
 }
 
 /* ---- Club rules (header) ---- */
