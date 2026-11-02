@@ -122,6 +122,14 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
   split across everyone or one team. Everyone sees the total, their own share and
   balance, and a "settle up" list of who pays whom.
 
+## Home
+
+Home is a dashboard: your team's next session with the Yes/Maybe/No vote, the events list,
+your upcoming matches (yours first, across all events), your money position (team sessions
+and challenge), and your team's regular slot plus its team rules (Sessions → Regular
+session → Edit → "Team rules"). Tapping an event opens the event screen: poster, score,
+countdown, format, standings.
+
 ## Events
 
 Home lists all events. The challenge is one of them; admins create more with **New event**
