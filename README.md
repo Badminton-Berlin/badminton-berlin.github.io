@@ -130,6 +130,14 @@ and challenge), and your team's regular slot plus its team rules (Sessions → R
 session → Edit → "Team rules"). Tapping an event opens the event screen: poster, score,
 countdown, format, standings.
 
+## Who sees what (club scoping)
+
+Every event has a list of **participating clubs** (set by the admin when creating or editing
+it). A registered member only sees events their club takes part in, their own club's sessions,
+votes and session costs, and the pairs/schedule/costs of events they are part of. This is
+enforced by the Firestore security rules, not just hidden in the app. Admins see everything.
+The header shows the app name (Admin → Event → Edit → "App name") and the reader's club.
+
 ## Events
 
 Home lists all events. The challenge is one of them; admins create more with **New event**

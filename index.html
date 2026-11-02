@@ -268,23 +268,26 @@ const DEFAULT_EVENT = {
   pointsTo: 21,
   registrationOpen: true,
   allowPlayerScores: false,
-  currency: "€"
+  currency: "€",
+  appName: "Badminton Berlin"
 };
 
 const EVENT_KEYS=["name","type","date","time","venue","courts","legs","format","matchesPerPlayer","bestOf","pointsTo","houseRules","description"];
-const GLOBAL_KEYS=["teamA","shortA","teamB","shortB","currency","registrationOpen","allowPlayerScores"];
+const GLOBAL_KEYS=["teamA","shortA","teamB","shortB","currency","registrationOpen","allowPlayerScores","appName"];
 const pick=(o,keys)=>Object.fromEntries(keys.filter(k=>o && o[k]!==undefined).map(k=>[k,o[k]]));
 const EVENT_TYPES={challenge:"Challenge", tournament:"Tournament", social:"Social", training:"Training camp"};
 function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-function allEvents(){ if(S.events.length) return S.events; return [{id:"main", type:"challenge", ...pick(DEFAULT_EVENT,EVENT_KEYS), ...pick(S.settingsEvent||{},EVENT_KEYS), virtual:true}]; }
+function allEvents(){ if(S.events.length) return S.events; if(!isAdmin() && !isDemo) return []; return [{id:"main", type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT,EVENT_KEYS), ...pick(S.settingsEvent||{},EVENT_KEYS), virtual:true}]; }
+const evClubs = ev => Array.isArray(ev?.clubs) && ev.clubs.length ? ev.clubs : ["A","B"];
 const inEv = x => (x.eventId||"main")===S.eventId;
 function recomputeEvent(){
   const evs=allEvents(); let ev=evs.find(e=>e.id===S.eventId);
-  if(!ev){ const t=todayISO(); ev = evs.filter(e=>e.date>=t).sort((a,b)=>a.date.localeCompare(b.date))[0] || [...evs].sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0]; S.eventId=ev.id; }
+  if(!ev){ const t=todayISO(); ev = evs.filter(e=>e.date>=t).sort((a,b)=>a.date.localeCompare(b.date))[0] || [...evs].sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0]; S.eventId=ev?ev.id:null; }
+  if(!ev){ ev={id:null, name:"", clubs:[], type:"challenge"}; }
   S.ev=ev; S.event={...DEFAULT_EVENT, ...pick(S.settingsEvent||{},GLOBAL_KEYS), ...pick(ev,EVENT_KEYS)};
   S.pairs=S.allPairs.filter(inEv); S.matches=S.allMatches.filter(inEv);
 }
-function selectEvent(id){ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recomputeEvent(); render(); }
+function selectEvent(id){ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recomputeEvent(); window.refreshScopedSubs?.(); render(); }
 async function clearEv(col){ for(const x of (col==="matches"?S.matches:S.pairs)) await store.remove(col, x.id); }
 
 /* ---------------- Store abstraction (Firebase or local demo) ---------------- */
@@ -301,9 +304,9 @@ function makeDemoStore(){
   let data = lsGet(KEY, null) || Object.fromEntries(COLS.map(c=>[c,{}]));
   const subs = {};
   const save = ()=> lsSet(KEY, data);
-  const notify = c => (subs[c]||[]).forEach(fn => fn(Object.entries(data[c]).map(([id,d])=>({id,...d}))));
+  const notify = c => (subs[c]||[]).forEach(fn => fn());
   return {
-    subscribe(c, fn){ (subs[c] ||= []).push(fn); fn(Object.entries(data[c]).map(([id,d])=>({id,...d}))); return ()=>{ subs[c]=subs[c].filter(f=>f!==fn); }; },
+    subscribe(c, fn, filter){ const sel=()=> Object.entries(data[c]).map(([id,d])=>({id,...d})).filter(r=> !filter ? true : filter.id ? r.id===filter.id : filter.op==="array-contains" ? (Array.isArray(r[filter.field]) && r[filter.field].includes(filter.value)) : r[filter.field]===filter.value); const h=()=>fn(sel()); (subs[c] ||= []).push(h); h(); return ()=>{ subs[c]=subs[c].filter(f=>f!==h); }; },
     async set(c,id,d){ data[c][id] = JSON.parse(JSON.stringify(d)); save(); notify(c); },
     async update(c,id,p){ data[c][id] = {...(data[c][id]||{}), ...JSON.parse(JSON.stringify(p))}; save(); notify(c); },
     async remove(c,id){ delete data[c][id]; save(); notify(c); },
@@ -329,7 +332,7 @@ async function makeFirebaseStore(){
   try { fs.enableIndexedDbPersistence && await fs.enableIndexedDbPersistence(db); } catch(e){}
   const strip = d => JSON.parse(JSON.stringify(d));
   return {
-    subscribe(c, fn){ return fs.onSnapshot(fs.collection(db,c), snap => fn(snap.docs.map(d=>({id:d.id, ...d.data()}))), err => { console.error(err); toast("Could not load "+c+": "+err.code); }); },
+    subscribe(c, fn, filter){ let q=fs.collection(db,c); if(filter){ q = filter.id ? fs.query(q, fs.where(fs.documentId(),"==",filter.id)) : fs.query(q, fs.where(filter.field, filter.op, filter.value)); } return fs.onSnapshot(q, snap => fn(snap.docs.map(d=>({id:d.id, ...d.data()}))), err => { console.error(err); toast("Could not load "+c+": "+err.code); }); },
     set:(c,id,d)=> fs.setDoc(fs.doc(db,c,id), strip(d)),
     update:(c,id,p)=> fs.setDoc(fs.doc(db,c,id), strip(p), {merge:true}),
     remove:(c,id)=> fs.deleteDoc(fs.doc(db,c,id)),
@@ -482,8 +485,9 @@ function renderTabs(){
   $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${S.tab===k||(S.tab==="event"&&k==="home")?"page":"false"}">${ICONS[k]}${l}</button>`).join("");
 }
 function render(){
-  $("#hdrTitle").textContent = S.event.name || "Badminton challenge";
-  $("#hdrEyebrow").textContent = `${S.event.shortA} vs ${S.event.shortB} · ${fmtDate(S.event.date)}`;
+  window.refreshScopedSubs?.();
+  $("#hdrTitle").textContent = S.event.appName || "Badminton";
+  const mt=myTeam(); $("#hdrEyebrow").textContent = mt ? `${teamName(mt)}${isAdmin()?" · admin":""}` : `${S.event.teamA} · ${S.event.teamB}`;
   const m = me(); $("#meBtn").innerHTML = m ? avatar(m,"sm") : `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
   renderTabs();
   if(S.tab==="admin" && !isAdmin()) S.tab="home";
@@ -516,11 +520,11 @@ function vEvent(){
     <div class="row spread"><b style="font-family:var(--f-display);font-size:22px">${esc(e.name)}</b><span class="pill">${esc(EVENT_TYPES[S.ev.type]||"Event")}</span></div>
     <div class="meta"><span>${esc(fmtDate(e.date))}${e.time?" · "+esc(e.time):""}</span><span>${esc(e.venue)}</span></div>
     ${e.description?`<p class="small muted" style="margin:0">${esc(e.description)}</p>`:""}
-    <div class="vs">
+    ${evClubs(S.ev).length<2 ? `<div class="row"><span class="pill ${evClubs(S.ev)[0]}">${esc(teamName(evClubs(S.ev)[0]))} only</span></div>` : `<div class="vs">
       <div class="team a"><span class="tname">${esc(e.teamA).replace("/","/<wbr>")}</span><span class="score">${st.A.mw}</span><span class="small muted">${nA} players · ${pA} pairs</span></div>
       <span class="dash">–</span>
       <div class="team b"><span class="tname">${esc(e.teamB).replace("/","/<wbr>")}</span><span class="score">${st.B.mw}</span><span class="small muted">${nB} players · ${pB} pairs</span></div>
-    </div>
+    </div>`}
     ${diff>0 ? `<div class="countdown"><div><b>${d}</b><span>days</span></div><div><b>${h}</b><span>hours</span></div><div><b>${mi}</b><span>min</span></div></div>` : `<div class="pill live" style="justify-self:start">${done===S.matches.length&&S.matches.length?"Finished":"Match day"}</div>`}
   </section>
   <div class="stats">
@@ -566,7 +570,8 @@ function vHome(){
       ${cfg.rules?`<div class="small" style="white-space:pre-wrap">${esc(cfg.rules)}</div>`:`<div class="small muted">No team rules yet — add things like court fee, shuttle type, who books, cancellation deadline.</div>`}
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
-  return banner + sessionCard + eventsList() + matchesCard + moneyCard + rulesCard;
+  const evBlock = (!m && !isAdmin() && !isDemo) ? `<section class="card stack"><h3>Events</h3><div class="small muted">Register with your club to see its events, sessions and costs.</div></section>` : eventsList();
+  return banner + sessionCard + evBlock + matchesCard + moneyCard + rulesCard;
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
@@ -706,8 +711,9 @@ function sheetMatch(id){
 
 /* ---- Money ---- */
 function vMoney(){
-  const mo = S.filterMo || (myTeam() ? myTeam() : "event");
-  const seg = `<div class="seg" data-seg="filterMo"><button aria-pressed="${mo==="event"}" data-val="event">Challenge</button><button class="A" aria-pressed="${mo==="A"}" data-val="A">${esc(S.event.shortA)} sessions</button><button class="B" aria-pressed="${mo==="B"}" data-val="B">${esc(S.event.shortB)} sessions</button></div>`;
+  let mo = S.filterMo || (myTeam() ? myTeam() : "event"); if(!isAdmin() && mo!=="event" && mo!==myTeam()) mo = myTeam()||"event";
+  const teamBtns = isAdmin() ? `<button class="A" aria-pressed="${mo==="A"}" data-val="A">${esc(S.event.shortA)} sessions</button><button class="B" aria-pressed="${mo==="B"}" data-val="B">${esc(S.event.shortB)} sessions</button>` : myTeam() ? `<button class="${myTeam()}" aria-pressed="${mo===myTeam()}" data-val="${myTeam()}">${esc(teamShort(myTeam()))} sessions</button>` : "";
+  const seg = `<div class="seg" data-seg="filterMo"><button aria-pressed="${mo==="event"}" data-val="event">${esc(S.ev.name||"Event")}</button>${teamBtns}</div>`;
   if(mo!=="event") return seg + vTeamMoney(mo);
   const {total, perHead, bal, transfers} = expenseSummary();
   const mine = me() ? bal[me().id] : null;
@@ -854,6 +860,8 @@ function sheetEvent(){
     <label class="f">Matches per player (rotation format)<input type="number" id="evMpp" min="1" max="12" value="${e.matchesPerPlayer||3}"><span class="help">Target. The app picks the nearest schedule size where every player of a team plays exactly the same number of matches.</span></label>
     <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs (fixed pairs)<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
     <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
+    <label class="f">App name (header)<input id="evApp" maxlength="30" value="${esc(e.appName||"Badminton Berlin")}"></label>
+    <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part in this event</span><label class="check"><input type="checkbox" class="evClub" value="A" ${evClubs(S.ev).includes("A")?"checked":""}> ${esc(e.teamA)}</label><label class="check"><input type="checkbox" class="evClub" value="B" ${evClubs(S.ev).includes("B")?"checked":""}> ${esc(e.teamB)}</label><span class="help">Members only see events their club takes part in.</span></div>
     <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>
     <label class="f">House rules (shown at the top of the Rules page)<textarea id="evRules" placeholder="e.g. Bring your own racket. Nylon shuttles, Yonex Mavis 350. Doors open 9:30.">${esc(e.houseRules||"")}</textarea></label>
     <label class="check"><input type="checkbox" id="evReg" ${e.registrationOpen?"checked":""}> Registration open</label>
@@ -866,6 +874,7 @@ function sheetNewEvent(){
     <div class="row"><label class="f grow">Type<select id="neType">${Object.entries(EVENT_TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></label><label class="f grow">Courts<input type="number" id="neCourts" min="1" max="12" value="2"></label></div>
     <div class="row"><label class="f grow">Date<input type="date" id="neDate" required min="${todayISO()}"></label><label class="f grow">Start<input type="time" id="neTime" value="10:00"></label></div>
     <label class="f">Venue<input id="neVenue" placeholder="Preussenpark, Berlin"></label>
+    <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part</span><label class="check"><input type="checkbox" class="neClub" value="A" checked> ${esc(S.event.teamA)}</label><label class="check"><input type="checkbox" class="neClub" value="B" checked> ${esc(S.event.teamB)}</label><span class="help">Only members of these clubs will see the event. Pick one club for an internal event.</span></div>
     <label class="f">Description<textarea id="neDesc" placeholder="Open to both teams, bring a partner…"></textarea></label>
     <div class="row"><label class="f grow">Match format<select id="neFormat"><option value="fixed">Fixed pairs</option><option value="rotation">Rotation (equal matches)</option></select></label><label class="f grow">Matches per player<input type="number" id="neMpp" min="1" max="12" value="3"></label></div>
     <label class="f">Best of<select id="neBestOf"><option value="1">1 game</option><option value="3" selected>3 games</option><option value="5">5 games</option></select></label>
@@ -882,7 +891,7 @@ function eventsList(){
   const evs=[...allEvents()].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
   const t=todayISO(); const up=evs.filter(e=>e.date>=t), past=evs.filter(e=>e.date<t).reverse();
   const card = ev=>{ const st=eventStatus(ev); const sel=ev.id===S.eventId; const ms=S.allMatches.filter(m=>(m.eventId||"main")===ev.id); let score=""; if(ms.length){ let a=0,b=0; ms.forEach(m=>{const r=matchResult(m); if(r.winner==="A")a++; if(r.winner==="B")b++;}); score=`${S.event.shortA} ${a}–${b} ${S.event.shortB}`; }
-    return `<button class="item ${sel?"sel":""}" data-act="openEvent" data-id="${ev.id}" style="${sel?"background:color-mix(in srgb,var(--accent) 12%,var(--surface))":""}"><div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))}${ev.time?" · "+esc(ev.time):""}${ev.venue?" · "+esc(ev.venue):""}</span></div><div class="stack" style="gap:4px;align-items:flex-end"><span class="pill ${st.k==="live"?"live":st.k==="done"?"":"good"}">${st.k==="done"&&score?esc(score):st.label}</span><span class="tiny muted">${esc(EVENT_TYPES[ev.type]||"Event")}</span></div></button>`; };
+    return `<button class="item ${sel?"sel":""}" data-act="openEvent" data-id="${ev.id}" style="${sel?"background:color-mix(in srgb,var(--accent) 12%,var(--surface))":""}"><div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))}${ev.time?" · "+esc(ev.time):""}${ev.venue?" · "+esc(ev.venue):""}</span></div><div class="stack" style="gap:4px;align-items:flex-end"><span class="pill ${st.k==="live"?"live":st.k==="done"?"":"good"}">${st.k==="done"&&score?esc(score):st.label}</span><span class="tiny muted">${esc(EVENT_TYPES[ev.type]||"Event")} · ${evClubs(ev).map(teamShort).map(esc).join(" + ")}</span></div></button>`; };
   return `<section class="stack"><div class="sec-head"><h3>Events</h3>${isAdmin()?`<button class="btn sm" data-act="newEvent">New event</button>`:""}</div>
     <div class="list">${up.map(card).join("")}${past.map(card).join("")}</div><div class="tiny muted">Tap an event for its poster, score, countdown and standings.</div></section>`;
 }
@@ -959,7 +968,8 @@ function teamMoney(t){
 
 /* ---- Sessions tab ---- */
 function vSessions(){
-  const t = S.filterS || myTeam() || "A"; const cfg=teamCfg(t); const member=canManageTeam(t);
+  if(!isAdmin() && !myTeam()) return `<div class="empty"><b>Register first</b>Sessions, votes and costs belong to your club. Register to see yours.</div>${isDemo||!me()?`<button class="btn primary block" data-act="register">Register</button>`:""}`;
+  const t = isAdmin() ? (S.filterS || myTeam() || "A") : myTeam(); const cfg=teamCfg(t); const member=canManageTeam(t);
   const today=localISO(new Date());
   const all=S.sessions.filter(s=>s.team===t);
   const upcoming=all.filter(s=>s.date>=today && s.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date));
@@ -969,9 +979,9 @@ function vSessions(){
       ${S.pushOn?"":`<button class="btn primary" data-act="enablePush">Enable notifications</button>`}
       <div class="tiny muted">iPhone: add the app to your Home Screen first (Share → Add to Home Screen), then open it from there and tap Enable.</div></section>` : "";
   return `
-  <div class="seg" data-seg="filterS"><button class="A" aria-pressed="${t==="A"}" data-val="A">${esc(S.event.teamA)}</button><button class="B" aria-pressed="${t==="B"}" data-val="B">${esc(S.event.teamB)}</button></div>
+  ${isAdmin()?`<div class="seg" data-seg="filterS"><button class="A" aria-pressed="${t==="A"}" data-val="A">${esc(S.event.teamA)}</button><button class="B" aria-pressed="${t==="B"}" data-val="B">${esc(S.event.teamB)}</button></div>`:""}
   <section class="card stack">
-    <div class="sec-head"><h3>Regular session</h3>${member?`<button class="btn sm" data-act="editTeamCfg" data-team="${t}">Edit</button>`:""}</div>
+    <div class="sec-head"><h3>${esc(teamName(t))} · regular session</h3>${member?`<button class="btn sm" data-act="editTeamCfg" data-team="${t}">Edit</button>`:""}</div>
     ${cfg.enabled ? `<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br><span class="muted">${esc(cfg.location||"Location not set")}${cfg.address?" · "+esc(cfg.address):""}</span>${cfg.note?`<br><span class="small muted">${esc(cfg.note)}</span>`:""}</div>
       ${cfg.rules?`<div class="small" style="white-space:pre-wrap">${esc(cfg.rules)}</div>`:""}
       <div class="small muted">Vote reminder: ${WEEKDAYS[cfg.voteDay??5]} morning. The next session is created automatically.</div>`
@@ -1198,17 +1208,19 @@ document.addEventListener("click", e => {
     delExpense: ()=> confirmSheet("Delete expense", "Delete this expense?", "Delete", ()=>guard(async()=>{ await store.remove("expenses", id); closeSheet(); })),
     editEvent: sheetEvent,
     saveEvent: ()=> guard(async ()=>{
-      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, format:$("#evFormat").value, matchesPerPlayer:+$("#evMpp").value||3, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked, houseRules:$("#evRules").value.trim(), type:$("#evType").value, description:$("#evDesc").value.trim()};
+      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, format:$("#evFormat").value, matchesPerPlayer:+$("#evMpp").value||3, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked, houseRules:$("#evRules").value.trim(), type:$("#evType").value, description:$("#evDesc").value.trim(), appName:$("#evApp").value.trim()||"Badminton"};
+      const clubs=[...document.querySelectorAll(".evClub:checked")].map(c=>c.value); if(!clubs.length){ toast("Pick at least one club"); return; }
       await store.update("settings","event", pick(data,GLOBAL_KEYS));
-      await store.update("events", S.eventId, {...pick(data,EVENT_KEYS), updatedAt:Date.now()});
+      await store.update("events", S.eventId, {...pick(data,EVENT_KEYS), clubs, updatedAt:Date.now()});
       closeSheet(); toast("Event saved"); }),
     newEvent: ()=> sheetNewEvent(),
     saveNewEvent: ()=> guard(async ()=>{ const f=$("#neForm"); if(!f.reportValidity()) return;
       const data={name:$("#neName").value.trim(), type:$("#neType").value, date:$("#neDate").value, time:$("#neTime").value, venue:$("#neVenue").value.trim(), description:$("#neDesc").value.trim(), courts:+$("#neCourts").value||1, format:$("#neFormat").value, legs:1, matchesPerPlayer:+$("#neMpp").value||3, bestOf:+$("#neBestOf").value||3, pointsTo:21, houseRules:"", createdAt:Date.now(), createdBy:uid||null};
+      const clubs=[...document.querySelectorAll(".neClub:checked")].map(c=>c.value); if(!clubs.length){ toast("Pick at least one club"); return; } data.clubs=clubs;
       const id = (data.date+"-"+data.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")).slice(0,60) + "-" + rnd().slice(0,3);
       await store.set("events", id, data); closeSheet(); toast("Event created"); selectEvent(id); }),
     selectEvent: ()=> selectEvent(id),
-    openEvent: ()=>{ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recomputeEvent(); S.tab="event"; render(); },
+    openEvent: ()=>{ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recomputeEvent(); window.refreshScopedSubs?.(); S.tab="event"; render(); },
     delEvent: ()=> confirmSheet("Delete event", `Delete <b>${esc(S.ev.name)}</b> with its pairs, schedule and challenge-day costs?`, "Delete event", ()=>guard(async ()=>{
       for(const m of S.matches) await store.remove("matches", m.id); for(const p of S.pairs) await store.remove("pairs", p.id);
       for(const e of S.expenses.filter(e=>(!e.scope||e.scope==="event") && inEv(e))) await store.remove("expenses", e.id);
@@ -1242,7 +1254,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", async e => {
   if(e.target.id==="photoInput" && e.target.files[0]){ try{ S._photo = await shrinkPhoto(e.target.files[0]); $("#photoPreview").innerHTML=`<img class="avatar lg" src="${S._photo}" alt="">`; }catch(err){ toast("Couldn't read that image"); } }
-  if(e.target.id==="evSwitch"){ S.eventId=e.target.value; lsSet("ppc_event", S.eventId); S.pick=[]; recomputeEvent(); render(); }
+  if(e.target.id==="evSwitch"){ selectEvent(e.target.value); }
   if(e.target.id==="demoAdminToggle"){ S.demoAdmin=e.target.checked; lsSet("ppc_demo_admin", S.demoAdmin); render(); }
 });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
@@ -1255,8 +1267,8 @@ async function seedDemo(){
   const B=[["Sophie","Krüger","1996-04-04"],["Ole","Petersen","1990-12-19"],["Aylin","Demir","1999-08-11"],["Max","Lehmann","1987-06-23"],["Nina","Vogel","1993-10-05"]];
   for(const [f,l,d] of A) await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"A",photo:"",manual:true,createdAt:Date.now()});
   for(const [f,l,d] of B) await store.set("players", store.newId(), {first:f,last:l,dob:d,team:"B",photo:"",manual:true,createdAt:Date.now()});
-  await store.set("events", "main", {type:"challenge", ...pick(DEFAULT_EVENT, EVENT_KEYS), description:"The big one: LL against SP, best of 3 to 21, 2 courts.", createdAt:Date.now()});
-  await store.set("events", "2026-12-12-winter-doubles-social", {name:"Winter doubles social", type:"social", date:"2026-12-12", time:"14:00", venue:"Sporthalle Spandau", description:"Mixed pairs from both teams, mulled wine afterwards.", courts:2, legs:1, format:"rotation", matchesPerPlayer:3, bestOf:1, pointsTo:21, houseRules:"", createdAt:Date.now()});
+  await store.set("events", "main", {type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT, EVENT_KEYS), description:"The big one: LL against SP, best of 3 to 21, 2 courts.", createdAt:Date.now()});
+  await store.set("events", "2026-12-12-winter-doubles-social", {name:"Winter doubles social", type:"social", clubs:["B"], date:"2026-12-12", time:"14:00", venue:"Sporthalle Spandau", description:"SP members only: mixed pairs, mulled wine afterwards.", courts:2, legs:1, format:"rotation", matchesPerPlayer:3, bestOf:1, pointsTo:21, houseRules:"", createdAt:Date.now()});
   await store.set("teams", "A", {enabled:true, weekday:6, start:"10:00", end:"11:00", location:"Sporthalle Lichtenrade", address:"", voteDay:4, note:""});
   await store.set("teams", "B", {enabled:true, weekday:0, start:"08:30", end:"09:30", location:"Sporthalle Spandau, court 2", address:"", voteDay:5, note:"€5 each for the court", rules:"Court is booked by whoever is first on the list that week; cost is split between everyone who plays. Nylon shuttles (Mavis 350). Cancel by Saturday 20:00 or you still pay your share."});
   await store.set("expenses", store.newId(), {scope:"event", title:"Court hire 10–14h", amount:9600, date:"2027-01-16", category:"Court", paidBy:null, split:"all", createdAt:Date.now()});
@@ -1266,9 +1278,11 @@ async function seedDemo(){
 
 /* ---------------- Boot ---------------- */
 async function migrateEvents(){
-  if(S.events.length || !isAdmin() || S._migrated || !store) return; S._migrated=true;
+  if(!isAdmin() || !store) return;
+  for(const ev of S.events){ if(!Array.isArray(ev.clubs) || !ev.clubs.length){ try{ await store.update("events", ev.id, {clubs:["A","B"]}); }catch(e){ console.warn(e); } } }
+  if(S.events.length || S._migrated) return; S._migrated=true;
   const ev=allEvents()[0]; const {id, virtual, ...data}=ev;
-  try{ await store.set("events", "main", {...data, type:data.type||"challenge", createdAt:Date.now()}); }catch(e){ console.warn(e); }
+  try{ await store.set("events", "main", {...data, clubs:["A","B"], type:data.type||"challenge", createdAt:Date.now()}); }catch(e){ console.warn(e); }
 }
 async function boot(){
   view.innerHTML = `<div class="empty"><b>Loading…</b>Connecting to the challenge.</div>`;
@@ -1278,15 +1292,29 @@ async function boot(){
   }catch(e){ console.error(e); view.innerHTML = `<div class="empty"><b>Can't connect</b>${esc(e.message||e)}<br><span class="small">Check the Firebase config and that Anonymous sign-in is enabled.</span></div>`; return; }
   let first = true;
   const ready = {};
-  const sub = (c, fn)=> store.subscribe(c, rows => { fn(rows); ready[c]=true; if(Object.keys(ready).length>=8 || !first) { first=false; if(!$("#sheetHost").children.length) render(); else renderTabs(); } });
+  const after = ()=>{ refreshScopedSubs(); if(Object.keys(ready).length>=2 || !first) { first=false; if(!$("#sheetHost").children.length) render(); else renderTabs(); } };
+  const sub = (c, fn)=> store.subscribe(c, rows => { fn(rows); ready[c]=true; after(); });
+  S.scoped = {}; S.scopedData = {eventExpenses:[], teamExpenses:[]};
+  const resub = (name, col, filter, fn)=>{ S.scoped[name]?.(); S.scoped[name]=null; if(filter===false){ fn([]); return; } S.scoped[name]=store.subscribe(col, rows=>{ fn(rows); after(); }, filter); };
+  // Subscriptions whose query depends on who is reading (club, admin) and which event is selected.
+  // The Firestore rules only allow exactly these queries, so a member never receives another club's data.
+  window.refreshScopedSubs = function(){
+    const t=myTeam(), adm=isAdmin(); const key1=JSON.stringify([t,adm]);
+    if(S._scope1!==key1){ S._scope1=key1;
+      resub("events","events", adm ? null : t ? {field:"clubs", op:"array-contains", value:t} : false, rows=>{ S.events=rows; recomputeEvent(); setTimeout(migrateEvents, 800); });
+      resub("sessions","sessions", adm ? null : t ? {field:"team", op:"==", value:t} : false, rows=>{ S.sessions=rows; setTimeout(ensureNextSessions, 500); });
+      resub("teams","teams", adm ? null : t ? {id:t} : false, rows=>{ S.teams=rows; setTimeout(ensureNextSessions, 500); });
+      resub("teamExpenses","expenses", adm ? {field:"scope", op:"==", value:"team"} : t ? {field:"team", op:"==", value:t} : false, rows=>{ S.scopedData.teamExpenses=rows.filter(e=>e.scope==="team"); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; });
+    }
+    const key2=JSON.stringify([S.eventId, !!(t||adm)]);
+    if(S._scope2!==key2){ S._scope2=key2; const ok = !!(t||adm) && !!S.eventId;
+      resub("pairs","pairs", ok ? {field:"eventId", op:"==", value:S.eventId} : false, rows=>{ S.allPairs=rows; recomputeEvent(); });
+      resub("matches","matches", ok ? {field:"eventId", op:"==", value:S.eventId} : false, rows=>{ S.allMatches=rows; recomputeEvent(); });
+      resub("eventExpenses","expenses", ok ? {field:"eventId", op:"==", value:S.eventId} : false, rows=>{ S.scopedData.eventExpenses=rows.filter(e=>e.scope!=="team"); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; });
+    }
+  };
   sub("settings", rows => { const ev=rows.find(r=>r.id==="event"); S.settingsEvent = ev ? (({id,...r})=>r)(ev) : null; S.admins = rows.find(r=>r.id==="admins")||null; S.adminsLoaded=true; recomputeEvent(); });
-  sub("events", rows => { S.events = rows; recomputeEvent(); setTimeout(migrateEvents, 800); });
   sub("players", rows => S.players = rows);
-  sub("pairs", rows => { S.allPairs = rows; recomputeEvent(); });
-  sub("matches", rows => { S.allMatches = rows; recomputeEvent(); });
-  sub("expenses", rows => S.expenses = rows);
-  sub("sessions", rows => { S.sessions = rows; setTimeout(ensureNextSessions, 500); });
-  sub("teams", rows => { S.teams = rows; setTimeout(ensureNextSessions, 500); });
   if(location.hash==="#sessions") S.tab="sessions";
   if(!isDemo && "Notification" in window && Notification.permission==="granted") setTimeout(()=>registerPush(false), 2000);
   setTimeout(()=>{ if(first){ first=false; render(); } }, 3000);

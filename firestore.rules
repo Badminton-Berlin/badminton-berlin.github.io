@@ -16,6 +16,11 @@ service cloud.firestore {
     }
     function isMember() { return signedIn() && exists(/databases/$(db)/documents/players/$(request.auth.uid)); }
     function myTeam() { return get(/databases/$(db)/documents/players/$(request.auth.uid)).data.team; }
+    // An event is visible to a member when their club is listed in its clubs array.
+    function canSeeEvent(eventId) {
+      return isMember() && exists(/databases/$(db)/documents/events/$(eventId))
+        && myTeam() in get(/databases/$(db)/documents/events/$(eventId)).data.clubs;
+    }
     function validPlayer(d) {
       return d.first is string && d.first.size() > 0 && d.first.size() <= 40
         && d.last is string && d.last.size() <= 40
@@ -50,15 +55,15 @@ service cloud.firestore {
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == pid);
     }
 
-    // Pairs and schedule: admins only.
+    // Pairs and schedule: readable by members of the clubs in that event (the app queries by eventId); admins write.
     match /pairs/{id} {
-      allow read: if signedIn();
+      allow read: if isAdmin() || canSeeEvent(resource.data.eventId);
       allow write: if isAdmin();
     }
 
     // Matches: admins write; registered players may enter scores if the admin switched that on.
     match /matches/{id} {
-      allow read: if signedIn();
+      allow read: if isAdmin() || canSeeEvent(resource.data.eventId);
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || (signedIn() && playerScoresAllowed()
@@ -70,7 +75,9 @@ service cloud.firestore {
 
     // Expenses: challenge-day costs are managed by admins; team session costs and payments by that team's members.
     match /expenses/{id} {
-      allow read: if signedIn();
+      allow read: if isAdmin()
+        || (resource.data.scope == "team" && isMember() && resource.data.team == myTeam())
+        || (resource.data.scope != "team" && canSeeEvent(resource.data.eventId));
       allow create, update: if isAdmin()
         || (isMember() && request.resource.data.scope == "team" && request.resource.data.team == myTeam()
             && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 1000000);
@@ -79,19 +86,19 @@ service cloud.firestore {
 
     // Events (the challenge and any other event the admins create): everyone reads, admins write.
     match /events/{id} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+      allow read: if isAdmin() || (isMember() && myTeam() in resource.data.clubs);
+      allow write: if isAdmin() && request.resource.data.clubs is list && request.resource.data.clubs.size() > 0;
     }
 
     // Team settings (regular session day/time/place): admins or that team's members.
     match /teams/{t} {
-      allow read: if signedIn();
+      allow read: if isAdmin() || (isMember() && myTeam() == t);
       allow write: if isAdmin() || (isMember() && myTeam() == t);
     }
 
     // Weekly sessions: created/edited by admins or the team's members; votes (rsvps) are part of the document.
     match /sessions/{id} {
-      allow read: if signedIn();
+      allow read: if isAdmin() || (isMember() && resource.data.team == myTeam());
       allow create, update: if isAdmin() || (isMember() && request.resource.data.team == myTeam());
       allow delete: if isAdmin();
     }
