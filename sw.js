@@ -1,5 +1,5 @@
 // Service worker: caches the app shell so it opens instantly, and receives push notifications (Firebase Cloud Messaging).
-const CACHE = "ppc-shell-v6";
+const CACHE = "ppc-shell-v7";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/maskable-192.png", "./icons/maskable-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -28,7 +28,7 @@ if (FIREBASE_CONFIG) {
   messaging.onBackgroundMessage(payload => {
     const n = payload.notification || {}; const d = payload.data || {};
     if (n.title && !d.handled) return; // notification payloads are shown by the browser itself
-    self.registration.showNotification(d.title || "Preussenpark Challenge", { body: d.body || "", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png", tag: d.tag || "ppc", data: { url: d.url || "./#sessions" } });
+    self.registration.showNotification(d.title || "Badminton Berlin", { body: d.body || "", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png", tag: d.tag || "ppc", data: { url: d.url || "./#sessions" } });
   });
   self.addEventListener("notificationclick", e => {
     e.notification.close();

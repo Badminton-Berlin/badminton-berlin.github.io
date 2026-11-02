@@ -1,7 +1,7 @@
 {
   "name": "Badminton Berlin",
   "short_name": "Badminton",
-  "description": "LL vs SP badminton challenge: registration, pairs, schedule, scores and expenses. Developed by HM.",
+  "description": "Badminton Berlin — club sessions, votes, court money, events, matches and scores for Lichtenrade/Lankwitz and Spandau/Staaken. Developed by HM.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
