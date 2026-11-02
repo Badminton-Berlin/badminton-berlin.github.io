@@ -40,7 +40,10 @@ service cloud.firestore {
         && d.last is string && d.last.size() <= 40
         && d.team in ["A", "B"]
         && (!("dob" in d) || d.dob is string)
-        && (!("photo" in d) || (d.photo is string && d.photo.size() <= 90000));
+        && (!("photo" in d) || (d.photo is string && d.photo.size() <= 90000))
+        && (!("paypal" in d) || (d.paypal is string && d.paypal.size() <= 60))
+        && (!("iban" in d) || (d.iban is string && d.iban.size() <= 34))
+        && (!("ibanName" in d) || (d.ibanName is string && d.ibanName.size() <= 70));
     }
 
     // Settings collection: every signed-in player may read it (the app loads it as one query).
@@ -144,6 +147,21 @@ service cloud.firestore {
                     && request.resource.data.used == resource.data.used.concat([request.auth.uid])
                     && resource.data.used.size() < resource.data.maxUses;
       allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
+    }
+
+    // Activity log: every signed-in member appends entries about their own actions; admins read all, club admins their club's.
+    match /audit/{id} {
+      allow read: if isAdmin() || (resource.data.team in ["A", "B"] && isClubAdmin(resource.data.team));
+      allow create: if signedIn() && request.resource.data.by == request.auth.uid
+                    && request.resource.data.action is string && request.resource.data.action.size() <= 30
+                    && request.resource.data.detail is string && request.resource.data.detail.size() <= 300;
+      allow update, delete: if false;
+    }
+
+    // Season archives: frozen statistics; admins write, members of the listed clubs read.
+    match /seasons/{id} {
+      allow read: if isAdmin() || (isActiveMember() && myTeam() in resource.data.clubs);
+      allow write: if isAdmin();
     }
 
     // Push notification tokens: each device writes its own; only admins (and the reminder job) read them.
