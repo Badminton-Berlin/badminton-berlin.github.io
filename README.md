@@ -113,7 +113,13 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
   The winner, team standings and player records update for everyone live. Admins can
   also award a walkover. Optionally allow registered players to enter scores themselves
   (Admin → Event).
-- **Rules**: the document icon in the header (and "Rules & how we play" on Home) opens the
+- **Club rules**: the document icon in the header opens your own club's rules — regular slot,
+  address with map and directions link, and the free-text team rules (Sessions → Regular
+  session → Edit → "Team rules"). Members only ever see their own club's rules; admins see both.
+- **Maps**: in the team setup and in a session's edit form, type the address and tap
+  **Find on map** (OpenStreetMap search); a map with a draggable pin appears and players get
+  a "Directions" link (Google Maps) on the session cards and club rules page.
+- **Game rules** (how a match is scored/served): the "Game rules" button inside club rules, or (and "Rules & how we play" on Home) opens the
   challenge rules — format, tie-breaks, BWF scoring, doubles serving rotation, faults, lets,
   fair play. Admin → Event → "House rules" adds your own text at the top.
 - **Stats**: Players → Stats is a badhub-style player table (Sp, S, N, Quote, Satz ±, Ball ±);
