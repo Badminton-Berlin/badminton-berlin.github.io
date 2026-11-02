@@ -97,8 +97,9 @@ and add your site's domain (e.g. `something.netlify.app`) if it isn't listed.
   - *Rotation (Davis Cup style)* — no fixed pairs. You set matches per player (= rounds);
     each round everyone who can play plays once, the app rotates partners and opponents
     so nobody repeats a partner or opponent until it's unavoidable, and players who have
-    to sit out (odd team sizes) take turns. Everyone ends with the same number of matches
-    (±1 when team sizes are unequal).
+    to sit out (odd team sizes) take turns. The schedule is sized so that every player of a
+    team plays exactly the same number of matches (e.g. 6 vs 5 players → blocks of 15
+    matches: every LL player 5, every SP player 6).
 - **Schedule**: the app tells you the number of matches from the pairs you have — every
   pair plays every pair of the other team (choose 1 or 2 legs). **Generate schedule**
   builds rounds so no pair plays twice in a round and spreads them over your courts.

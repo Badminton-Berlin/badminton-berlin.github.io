@@ -358,13 +358,15 @@ function buildFixtures(pairsA, pairsB, legs, courts){
   const out=[]; rounds.forEach((r,ri)=> r.forEach((m,ci)=> out.push({...m, round:ri+1, court:ci+1, order:out.length, games:[], walkover:null, status:"scheduled"})));
   return out;
 }
-function buildRotation(A, B, k, courts){
-  // Davis Cup style rotation: k rounds; in each round as many matches as both teams can field,
-  // partners and opponents rotate, players with the fewest matches always play first.
-  const m = Math.min(Math.floor(A.length/2), Math.floor(B.length/2)); if(!m) return {pairs:[], matches:[]};
+function buildRotation(A, B, M, courts){
+  // Davis Cup style rotation: M matches in rounds; in each round as many matches as both teams can field,
+  // partners (same team) and opponents rotate, and players with the fewest matches always play first,
+  // so when 2M divides evenly by the team size everyone in that team ends on exactly the same count.
+  const per = Math.min(Math.floor(A.length/2), Math.floor(B.length/2)); if(!per || !M) return {pairs:{}, matches:[]};
   const played={}, partner={}, faced={}, pairs={};
   const key=(x,y)=> x<y ? x+"|"+y : y+"|"+x;
   const shuffle=a=>{ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+  let m = per;
   const pick = team => shuffle([...team]).sort((a,b)=>(played[a.id]||0)-(played[b.id]||0)).slice(0,2*m);
   const matchings = ps => { // all perfect matchings of ps (≤12 players)
     if(!ps.length) return [[]]; const [h,...rest]=ps, out=[];
@@ -376,7 +378,9 @@ function buildRotation(A, B, k, courts){
   const grow=f=> f? 3**f-1 : 0; // repeating the same person twice costs far more than once
   const oppCost=(pa,pb)=>{ let c=0; pa.forEach((x,i)=> x.forEach(p=> pb[i].forEach(q=> c+=grow(faced[key(p.id,q.id)])))); return c; };
   const partCost=mm=> mm.reduce((t,[x,y])=>t+grow(partner[key(x.id,y.id)]),0);
-  for(let r=0;r<k;r++){
+  let left=M;
+  while(left>0){
+    m = Math.min(per, left); left -= m;
     const sa=pick(A), sb=pick(B); let pa, best;
     if(m<=4){ // joint search over pairings of both teams and opponent assignment (partner repeats cost double)
       let bc=Infinity; const MA=shuffle(matchings(sa)), MB=shuffle(matchings(sb));
@@ -508,9 +512,14 @@ function vHome(){
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
-    const nA=S.players.filter(p=>p.team==="A").length, nB=S.players.filter(p=>p.team==="B").length, k=S.event.matchesPerPlayer||3;
-    const per=Math.min(Math.floor(nA/2),Math.floor(nB/2)), total=per*k, courts=S.event.courts||1;
-    return {rotation:true, nA, nB, k, per, total, rounds: total?k*Math.ceil(per/courts):0, perA: nA?2*total/nA:0, perB: nB?2*total/nB:0};
+    const nA=S.players.filter(p=>p.team==="A").length, nB=S.players.filter(p=>p.team==="B").length, target=S.event.matchesPerPlayer||3;
+    const per=Math.min(Math.floor(nA/2),Math.floor(nB/2)), courts=S.event.courts||1;
+    if(!per) return {rotation:true, nA, nB, per:0, total:0, rounds:0, perA:0, perB:0, block:0, q:0};
+    const gcd=(a,b)=> b? gcd(b,a%b) : a, lcm=(a,b)=> a*b/gcd(a,b);
+    const block = lcm(nA%2?nA:nA/2, nB%2?nB:nB/2);      // smallest match count where 2·M divides by both team sizes
+    let q=1, bestD=Infinity; for(let x=1;x<=12;x++){ const d=Math.abs(2*x*block/nA-target)+Math.abs(2*x*block/nB-target); if(d<bestD){bestD=d;q=x;} }
+    const total=q*block;
+    return {rotation:true, nA, nB, per, block, q, total, rounds: Math.ceil(total/per)*Math.ceil(per/courts), perA:2*total/nA, perB:2*total/nB, target};
   }
   const pA = S.pairs.filter(p=>p.team==="A").length || Math.floor(S.players.filter(p=>p.team==="A").length/2);
   const pB = S.pairs.filter(p=>p.team==="B").length || Math.floor(S.players.filter(p=>p.team==="B").length/2);
@@ -521,9 +530,8 @@ function projectFixtures(){
 function projectedText(p){
   if(p.rotation){
     if(!p.per) return "Rotation format: once both teams have at least 2 registered players, the app builds rounds in which partners and opponents change every match, so everyone plays the same number of matches.";
-    const even = p.nA===2*p.per && p.nB===2*p.per;
-    const share = t=>{ const n=t==="A"?p.nA:p.nB, x=t==="A"?p.perA:p.perB; const out=n-2*p.per; return Number.isInteger(x) ? `${x} each` : `${Math.floor(x)}–${Math.ceil(x)} each (${n} players, ${out} sit${out===1?"s":""} out each round in turn)`; };
-    return `<b>Rotation format</b> (Davis Cup style, no fixed pairs): ${p.k} round${p.k>1?"s":""} of ${p.per} match${p.per>1?"es":""} = <b>${p.total} matches</b>. ${esc(S.event.shortA)} players play ${share("A")}, ${esc(S.event.shortB)} players ${share("B")}. Partners and opponents rotate; on ${S.event.courts} court${S.event.courts>1?"s":""} that is ${p.rounds} playing round${p.rounds>1?"s":""}.${even?"":""}`;
+    const sit = t=>{ const n=t==="A"?p.nA:p.nB; const out=n-2*p.per; return out>0?` (${out} of ${n} sit${out===1?"s":""} out each round, in turn)`:""; };
+    return `<b>Rotation format</b> (Davis Cup style, no fixed pairs): <b>${p.total} matches</b> in ${Math.ceil(p.total/p.per)} rounds of up to ${p.per}. Every ${esc(S.event.shortA)} player plays <b>exactly ${p.perA}</b>${sit("A")}, every ${esc(S.event.shortB)} player <b>exactly ${p.perB}</b>${sit("B")}. Partners come from your own team and change every match; opponents rotate too. On ${S.event.courts} court${S.event.courts>1?"s":""} that is ${p.rounds} playing round${p.rounds>1?"s":""}.${p.block>1?` <span class="muted">Equal play with ${p.nA} vs ${p.nB} players works in blocks of ${p.block} matches; your target of ${p.target} per player rounds to ${p.q}×.</span>`:""}`;
   }
   if(!p.pA || !p.pB) return "Once both teams have at least 2 registered players, the app works out how many matches you need. Each pair from one team plays every pair of the other team.";
   const fixed = S.pairs.length>0;
@@ -722,7 +730,7 @@ function sheetRules(){
     ${e.houseRules?`<div class="banner info" style="display:block;white-space:pre-wrap;font-weight:500">${esc(e.houseRules)}</div>`:""}
     ${h("The challenge")}
     ${ul([
-      e.format==="rotation" ? `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2), Davis Cup style rotation: there are no fixed pairs. Each round every available player plays once, with a new partner and new opponents whenever possible, so everyone plays ${e.matchesPerPlayer||3} matches (one fewer in rounds where a team has an odd number and someone sits out in turn).` : `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2). Every pair plays every pair of the other team${e.legs>1?` ${e.legs} times`:" once"}.`,
+      e.format==="rotation" ? `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2), Davis Cup style rotation: there are no fixed pairs. Each round every available player plays once, with a new partner and new opponents whenever possible, so every player of a team plays exactly the same number of matches (when a team has an odd number, players sit out in turn).` : `<b>${esc(e.teamA)}</b> vs <b>${esc(e.teamB)}</b>, doubles only (2 v 2). Every pair plays every pair of the other team${e.legs>1?` ${e.legs} times`:" once"}.`,
       `A match is <b>best of ${e.bestOf} game${e.bestOf>1?"s":""}</b> to <b>${T}</b> points (first to ${need} game${need>1?"s":""} wins).`,
       `The team with more match wins takes the challenge. Tie-break: games difference, then points difference, then one deciding match between pairs chosen by the captains.`,
       `Pairs and the schedule are set by the organiser in this app. Check your round and court under <b>Matches</b>; be at the court when the previous match finishes.`,
@@ -779,7 +787,7 @@ function sheetEvent(){
     <div class="row"><label class="f grow">Team A<input id="evTeamA" value="${esc(e.teamA)}"></label><label class="f" style="width:84px">Short<input id="evShortA" maxlength="4" value="${esc(e.shortA)}"></label></div>
     <div class="row"><label class="f grow">Team B<input id="evTeamB" value="${esc(e.teamB)}"></label><label class="f" style="width:84px">Short<input id="evShortB" maxlength="4" value="${esc(e.shortB)}"></label></div>
     <label class="f">Schedule format<select id="evFormat"><option value="fixed" ${e.format!=="rotation"?"selected":""}>Fixed pairs — every pair plays every opposing pair</option><option value="rotation" ${e.format==="rotation"?"selected":""}>Rotation (Davis Cup style) — partners change, everyone plays equally</option></select></label>
-    <label class="f">Matches per player (rotation format)<input type="number" id="evMpp" min="1" max="12" value="${e.matchesPerPlayer||3}"><span class="help">Number of rounds; in each round everyone who can play, plays once.</span></label>
+    <label class="f">Matches per player (rotation format)<input type="number" id="evMpp" min="1" max="12" value="${e.matchesPerPlayer||3}"><span class="help">Target. The app picks the nearest schedule size where every player of a team plays exactly the same number of matches.</span></label>
     <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs (fixed pairs)<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
     <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
     <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>
@@ -901,7 +909,7 @@ document.addEventListener("click", e => {
     genFixtures: ()=>{ const go = async ()=> guard(async ()=>{
         if(S.event.format==="rotation"){
           const A=S.players.filter(p=>p.team==="A"), B=S.players.filter(p=>p.team==="B");
-          const res=buildRotation(A,B,S.event.matchesPerPlayer||3,S.event.courts||1);
+          const res=buildRotation(A,B,projectFixtures().total,S.event.courts||1);
           await store.removeAll("matches"); await store.removeAll("pairs");
           const ids={}; let order=0; for(const [k,pr] of Object.entries(res.pairs)){ const id=store.newId(); ids[k]=id; await store.set("pairs", id, {...pr, order:order++, auto:true, createdAt:Date.now()}); }
           for(const m of res.matches){ const {pairKeyA,pairKeyB,...rest}=m; await store.set("matches", store.newId(), {...rest, pairA:ids[pairKeyA], pairB:ids[pairKeyB], createdAt:Date.now()}); }
