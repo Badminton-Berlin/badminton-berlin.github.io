@@ -22,15 +22,18 @@ service cloud.firestore {
         && (!("photo" in d) || (d.photo is string && d.photo.size() <= 90000));
     }
 
-    // Event settings: everyone reads, admins write.
-    match /settings/event {
+    // Settings collection: every signed-in player may read it (the app loads it as one query).
+    match /settings/{doc} {
       allow read: if signedIn();
+    }
+
+    // Event settings: admins write.
+    match /settings/event {
       allow write: if isAdmin();
     }
 
     // Admin list: the first signed-in person to open the app claims it; after that only admins change it.
     match /settings/admins {
-      allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.uids == [request.auth.uid];
       allow update, delete: if isAdmin() && request.auth.uid in request.resource.data.uids;
     }

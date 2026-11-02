@@ -20,6 +20,11 @@ free Firebase project as the shared database. Total setup is about 15 minutes.
 Without a Firebase config the app runs in **demo mode** (data stays on that device only) —
 useful for trying it out, not for the real event.
 
+> **Status (2 Nov 2026):** done. Firebase project `preussenpark-challenge` (Firestore in eur3,
+> Anonymous sign-in, rules published, GitHub Pages domain authorised) and the config is in
+> `index.html`. The live app is https://hiteshmalhotra2583.github.io/badminton-challenge/ .
+> Steps 1–3 below are only needed again for a new event/project.
+
 ## Step 1 — Create the Firebase project (5 min)
 
 1. Go to https://console.firebase.google.com and click **Add project**. Name it e.g.
