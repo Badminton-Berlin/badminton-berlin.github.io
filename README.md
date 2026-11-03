@@ -197,6 +197,17 @@ have an expiry and a use count. With "Open registration" off, registration is in
   `voteDeadline(s)` = the last `lockDay lockTime` before the session start; after it members can't change their vote
   (buttons hidden, "Votes closed Sat 14:00"), managers still can.
 
+## Payment requests
+
+- `requests/{id}` `{team, from, to, amount, note, status open|paid|declined|cancelled, notifyPending, paidNotify, createdAt…}`.
+- Requester: settle-up line → **Request** (prefilled), or Money → **Request money**; sees status, can Remind / cancel.
+  Treasurer in monthly-fee mode can request fees the same way.
+- Payer: banner on Home + "Payment requests" card in Money → **Pay** (opens the pay sheet with PayPal / IBAN / QR; "Mark as
+  paid" records the payment and closes the request) or **Decline**.
+- Notifications: immediate in-app toast + local notification while the app is open; push via `scripts/notify.mjs`
+  (every 20 min: `notifyPending` → push to payer, `paidNotify` → push to requester). The weekly vote reminder now fires on
+  any run at or after 07:00 on the vote day (GitHub schedules are often late).
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered

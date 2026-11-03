@@ -164,6 +164,25 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Payment requests: a member asks a club-mate for money. Requester and payer read it (admins and the club's admins too);
+    // the payer can mark it paid/declined, the requester can cancel or re-notify.
+    match /requests/{id} {
+      allow read: if isAdmin() || (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid))
+                  || (resource.data.team in ["A", "B"] && isClubAdmin(resource.data.team));
+      allow create: if isActiveMember() && request.resource.data.from == request.auth.uid && request.resource.data.team == myTeam()
+                    && request.resource.data.to is string && request.resource.data.to != request.auth.uid
+                    && request.resource.data.amount is int && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
+                    && request.resource.data.status == "open";
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.to == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "paidAt", "declinedAt", "expenseId", "paidNotify", "updatedAt"])
+            && request.resource.data.status in ["paid", "declined"])
+        || (signedIn() && resource.data.from == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "notifyPending", "remindedAt", "cancelledAt", "updatedAt"])
+            && request.resource.data.status in ["open", "cancelled"]);
+      allow delete: if isAdmin() || (signedIn() && resource.data.from == request.auth.uid);
+    }
+
     // Push notification tokens: each device writes its own; only admins (and the reminder job) read them.
     match /pushTokens/{u} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == u);

@@ -1,7 +1,7 @@
-name: Notifications (new members hourly, session reminder weekly)
+name: Notifications (requests, new members, session reminder)
 on:
   schedule:
-    - cron: "7 * * * *"   # hourly: new-member alerts every run; the vote reminder only at 07:00 Berlin on each club's vote day
+    - cron: "*/20 * * * *"   # every 20 min: payment requests + new-member alerts; the vote reminder once on each club's vote day from 07:00 Berlin
   workflow_dispatch:
     inputs:
       force:

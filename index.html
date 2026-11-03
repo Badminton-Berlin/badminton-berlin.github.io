@@ -300,7 +300,7 @@ function selectEvent(id){ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recom
 async function clearEv(col){ for(const x of (col==="matches"?S.matches:S.pairs)) await store.remove(col, x.id); }
 
 /* ---------------- Store abstraction (Firebase or local demo) ---------------- */
-const COLS = ["players","pairs","matches","expenses","settings","sessions","teams","pushTokens","events","invites","audit","seasons"];
+const COLS = ["players","pairs","matches","expenses","settings","sessions","teams","pushTokens","events","invites","audit","seasons","requests"];
 let store, uid = null, isDemo = !FIREBASE_CONFIG;
 
 function uidKey(){ return "ppc_uid"; }
@@ -364,7 +364,7 @@ async function makeFirebaseStore(){
 }
 
 /* ---------------- State ---------------- */
-const S = { event: {...DEFAULT_EVENT}, ev:{id:"main"}, eventId: lsGet("ppc_event", null), events: [], settingsEvent: null, allPairs: [], allMatches: [], admins: null, players: [], pairs: [], matches: [], expenses: [], sessions: [], teams: [], invites: [], audit: [], seasons: [], pendingInvite:null, pushOn:false, fbApp:null, tab: "home", filter: "all", demoAdmin: lsGet("ppc_demo_admin", true), online:true };
+const S = { event: {...DEFAULT_EVENT}, ev:{id:"main"}, eventId: lsGet("ppc_event", null), events: [], settingsEvent: null, allPairs: [], allMatches: [], admins: null, players: [], pairs: [], matches: [], expenses: [], sessions: [], teams: [], invites: [], audit: [], seasons: [], requests: [], pendingInvite:null, pushOn:false, fbApp:null, tab: "home", filter: "all", demoAdmin: lsGet("ppc_demo_admin", true), online:true };
 const isAdmin = ()=> isDemo ? S.demoAdmin : !!(S.admins && uid && S.admins.uids && S.admins.uids.includes(uid));
 const me = ()=> S.players.find(p => p.id === uid) || null;
 const byId = (arr, id)=> arr.find(x=>x.id===id);
@@ -617,7 +617,7 @@ function vHome(){
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
   const evBlock = (m && m.sessionOnly) ? "" : (!m && !isAdmin() && !isDemo) ? `<section class="card stack"><h3>Events</h3><div class="small muted">Register with your club to see its events, sessions and costs.</div></section>` : eventsList();
-  return banner + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard + CREDIT;
+  return banner + requestsBanner() + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard + CREDIT;
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
@@ -1196,8 +1196,9 @@ function vTeamMoney(t){
   return `
   <div class="stats"><div class="stat"><b>${esc(money(total))}</b><span>Team spend</span></div><div class="stat"><b>${items.filter(e=>e.type!=="payment").length}</b><span>Costs</span></div><div class="stat"><b class="balance ${myNet>=0?"pos":"neg"}">${myNet!=null?esc(money(Math.round(myNet))):"—"}</b><span>${myNet>0?"Owed to you":myNet<0?"You owe":"Your balance"}</span></div></div>
   ${member && !amInactive()?`<div class="row"><button class="btn primary grow" data-act="addTeamExpense" data-team="${t}">Add cost</button><button class="btn grow" data-act="recordPayment" data-team="${t}">Record payment</button></div>`:""}
+  ${member && !amInactive() ? requestsCard(t) : ""}
   ${members.length?`<section class="card stack"><h3>Balances</h3><div class="stack" style="gap:6px">${[...members, ...S.players.filter(p=>p.team===t && !isActive(p) && p.id!==uid && Math.abs(bal[p.id]||0)>=1)].sort((a,b)=>bal[b.id]-bal[a.id]).map(p=>{const n=Math.round(bal[p.id]); return `<div class="row spread"><span class="row" style="gap:8px">${avatar(p,"sm")}<span>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}</span></span><b class="num balance ${n>=0?"pos":"neg"}" style="font-size:18px">${n>0?"+":""}${esc(money(n))}</b></div>`;}).join("")}</div>
-    ${transfers.length?`<h3>Settle up</h3><div class="stack" style="gap:6px">${transfers.map(x=>`<div class="row spread small"><span>${esc(fullName(byId(S.players,x.from)))} → ${esc(fullName(byId(S.players,x.to)))}</span><span class="row" style="gap:8px"><b class="num">${esc(money(Math.round(x.amt)))}</b>${member&&x.from===uid?`<button class="btn sm primary" data-act="payTo" data-team="${t}" data-to="${x.to}" data-amt="${Math.round(x.amt)}">Pay</button>`:member&&isAdmin()?`<button class="btn sm" data-act="recordPayment" data-team="${t}" data-from="${x.from}" data-to="${x.to}" data-amt="${Math.round(x.amt)}">Paid</button>`:""}</span></div>`).join("")}</div>`:`<div class="small muted">All square.</div>`}</section>`:""}
+    ${transfers.length?`<h3>Settle up</h3><div class="stack" style="gap:6px">${transfers.map(x=>`<div class="row spread small"><span>${esc(fullName(byId(S.players,x.from)))} → ${esc(fullName(byId(S.players,x.to)))}</span><span class="row" style="gap:8px"><b class="num">${esc(money(Math.round(x.amt)))}</b>${member&&x.from===uid?`<button class="btn sm primary" data-act="payTo" data-team="${t}" data-to="${x.to}" data-amt="${Math.round(x.amt)}">Pay</button>`:member&&x.to===uid?`<button class="btn sm" data-act="requestMoney" data-team="${t}" data-to="${x.from}" data-amt="${Math.round(x.amt)}" ${S.requests.some(r=>r.from===uid&&r.to===x.from&&r.status==="open")?'disabled title="Request already open"':""}>Request</button>`:member&&isAdmin()?`<button class="btn sm" data-act="recordPayment" data-team="${t}" data-from="${x.from}" data-to="${x.to}" data-amt="${Math.round(x.amt)}">Paid</button>`:""}</span></div>`).join("")}</div>`:`<div class="small muted">All square.</div>`}</section>`:""}
   ${keys.length?keys.map(k=>`<div class="sec-head"><h3>${k==="other"?"Other costs":esc(fmtDay(byId(S.sessions,k)?.date||""))}</h3><span class="small muted">${esc(money(bySession[k].filter(e=>e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0)))}</span></div><div class="list">${bySession[k].map(line).join("")}</div>`).join(""):`<div class="empty"><b>No team costs yet</b>When someone books the court, add it here with who paid and who played — the app keeps everyone's balance like Splitwise.</div>`}`;
 }
 
@@ -1443,12 +1444,12 @@ function payDetails(p, cents, text){
       <div class="row" style="justify-content:center"><div id="payQr"></div></div><div class="tiny muted" style="text-align:center">Scan with your banking app (GiroCode)</div></div>`:""}
   </div>`;
 }
-function sheetPay(team, to, amt){
-  const p=byId(S.players,to); if(!p) return; const ref=`Badminton ${teamShort(team)} ${fullName(me())||""}`.trim();
+function sheetPay(team, to, amt, reqId){
+  const p=byId(S.players,to); if(!p) return; const rq=reqId?byId(S.requests,reqId):null; const ref=(rq&&rq.note)?`${rq.note} ${fullName(me())||""}`.trim().slice(0,60):`Badminton ${teamShort(team)} ${fullName(me())||""}`.trim();
   openSheet(`Pay ${p.first}`, `<div class="stack"><div class="row" style="gap:12px">${avatar(p,"lg")}<div><b style="font-family:var(--f-display);font-size:22px">${esc(money(amt))}</b><br><span class="small muted">to ${esc(fullName(p))}</span></div></div>
     ${payDetails(p, amt, ref)}
     <div class="tiny muted">After paying, tap “Mark as paid” so the balance clears for everyone.</div></div>`,
-    `<button class="btn primary" data-act="markPaid" data-team="${team}" data-to="${to}" data-amt="${amt}">Mark as paid</button>`);
+    `<button class="btn primary" data-act="markPaid" data-team="${team}" data-to="${to}" data-amt="${amt}" data-req="${reqId||""}">Mark as paid</button>`);
   if(cleanIban(p.iban)) setTimeout(()=>drawQr("payQr", epcPayload(p.iban, p.ibanName||fullName(p), amt, ref)), 30);
 }
 // Months "YYYY-MM" from a to b inclusive.
@@ -1488,7 +1489,8 @@ function monthlyMoneyView(t, tm){
     ${tm.bal[uid]!=null?feeStatusLine(t, uid):""}
     ${member && !amInactive() ? `<div class="row">${myNet<-0.5&&tre&&tre.id!==uid?`<button class="btn primary grow" data-act="payTo" data-team="${t}" data-to="${tre.id}" data-amt="${-myNet}">Pay ${esc(money(-myNet))}</button>`:""}<button class="btn grow" data-act="recordPayment" data-team="${t}" data-to="${tre?tre.id:""}">Record fee payment</button><button class="btn grow" data-act="addTeamExpense" data-team="${t}">Add cost</button></div>`:""}
     <div class="tiny muted">Fees are paid to the treasurer, who pays court and shuttles from the pot. If someone else advances a cost, the club owes it back to them.</div></section>
-  <section class="card stack"><h3>Members</h3><div class="stack" style="gap:6px">${rows.map(p=>{const n=Math.round(tm.bal[p.id]||0); const ms=(tm.fee.dueMonths[p.id]||[]).length; return `<div class="row spread"><span class="row" style="gap:8px">${avatar(p,"sm")}<span>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.id===tm.fee.treasurer?' <span class="pill" style="display:inline-flex">treasurer</span>':""}<br><span class="tiny muted">${p.guest?"guest · no fee":`${ms} month${ms===1?"":"s"} due`}</span></span></span><span class="row" style="gap:8px"><b class="num balance ${n>=-0.5?"pos":"neg"}" style="font-size:18px">${n>0.5?"+":""}${esc(money(n))}</b>${member&&n<-0.5&&(isAdmin()||canEditTeam(t)||p.id===tm.fee.treasurer)&&p.id!==uid?`<button class="btn sm" data-act="recordPayment" data-team="${t}" data-from="${p.id}" data-to="${tm.fee.treasurer||""}" data-amt="${-n}">Paid</button>`:""}</span></div>`;}).join("")}</div></section>
+  ${member && !amInactive() ? requestsCard(t) : ""}
+  <section class="card stack"><h3>Members</h3><div class="stack" style="gap:6px">${rows.map(p=>{const n=Math.round(tm.bal[p.id]||0); const ms=(tm.fee.dueMonths[p.id]||[]).length; return `<div class="row spread"><span class="row" style="gap:8px">${avatar(p,"sm")}<span>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.id===tm.fee.treasurer?' <span class="pill" style="display:inline-flex">treasurer</span>':""}<br><span class="tiny muted">${p.guest?"guest · no fee":`${ms} month${ms===1?"":"s"} due`}</span></span></span><span class="row" style="gap:8px"><b class="num balance ${n>=-0.5?"pos":"neg"}" style="font-size:18px">${n>0.5?"+":""}${esc(money(n))}</b>${member&&n<-0.5&&(isAdmin()||canEditTeam(t)||p.id===tm.fee.treasurer)&&p.id!==uid?`<button class="btn sm" data-act="recordPayment" data-team="${t}" data-from="${p.id}" data-to="${tm.fee.treasurer||""}" data-amt="${-n}">Paid</button>`:""}${member&&n<-0.5&&uid===tm.fee.treasurer&&p.id!==uid?`<button class="btn sm" data-act="requestMoney" data-team="${t}" data-to="${p.id}" data-amt="${-n}" ${S.requests.some(r=>r.from===uid&&r.to===p.id&&r.status==="open")?'disabled title="Request already open"':""}>Request</button>`:""}</span></div>`;}).join("")}</div></section>
   ${keys.length?keys.map(k=>`<div class="sec-head"><h3>${k==="other"?"Fees & other":esc(fmtDay(byId(S.sessions,k)?.date||""))}</h3><span class="small muted">${esc(money(bySession[k].filter(e=>e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0)))}</span></div><div class="list">${bySession[k].map(line).join("")}</div>`).join(""):`<div class="empty"><b>Nothing recorded yet</b>Fee payments and club costs appear here.</div>`}`;
 }
 /* ---- Printable statements (member or club) — opens a print view; "Save as PDF" from the print dialog ---- */
@@ -1667,7 +1669,8 @@ function vHelp(){
     `<div class="tiny muted">The club pot and all fees outstanding are visible to everyone in the club.</div>`].join("") : [step([
     `Whoever paid the court or shuttles taps <b>Add cost</b> with the amount and who shares it (defaults to who played). The app keeps a running balance per person — like Splitwise.`,
     "Money → your club shows who owes whom with the fewest payments. Tap <b>Pay</b>: it opens PayPal with the amount filled in, or shows the IBAN and a QR code for your banking app. Then <b>Mark as paid</b>.",
-    "Add your own <b>PayPal.me name or IBAN</b> once (Edit profile → Payment details) so people can pay you back in one tap."]),
+    "Add your own <b>PayPal.me name or IBAN</b> once (Edit profile → Payment details) so people can pay you back in one tap.",
+    "Someone slow to pay? Tap <b>Request</b> next to their name (or <b>Request money</b> in Money). They get a notification and a Pay button; you see when it's paid. <b>Remind</b> sends it again."]),
     `<div class="tiny muted">Club money and challenge-day money are kept apart; both show on Home. Only you, your club and the admins see your balance.</div>`].join(""), true)}
   ${helpSection("5 · Events, matches and scores", li([
     "Home lists the events your club takes part in. Tap one for the poster, the score between the clubs, the countdown, the format and standings.",
@@ -1703,6 +1706,61 @@ function vHelp(){
     "<b>Activity log</b>, <b>Backup (JSON)</b> and <b>Close season</b> live on the Admin tab. Link your Google account so admin rights survive a new phone.",
     `See the <a href="${docs}admin-guide.pdf" target="_blank" rel="noopener">admin guide (PDF)</a> for the full walkthrough.`])) : ""}
   <div class="tiny muted" style="text-align:center;padding:8px 0 0">Questions? Ask your club organiser.</div>${CREDIT}`;
+}
+
+/* ---------------- Payment requests: ask a team-mate for money; they get a notification and a Pay prompt ---------------- */
+const reqOpenToMe = ()=> S.requests.filter(r=>r.to===uid && r.status==="open").sort((a,b)=>b.createdAt-a.createdAt);
+const reqMine = ()=> S.requests.filter(r=>r.from===uid).sort((a,b)=>b.createdAt-a.createdAt);
+const reqStatusPill = r => r.status==="open" ? `<span class="pill warn">open</span>` : r.status==="paid" ? `<span class="pill good">paid</span>` : r.status==="declined" ? `<span class="pill">declined</span>` : `<span class="pill">cancelled</span>`;
+function localNotify(title, body, tag){
+  try{ if(!("Notification" in window) || Notification.permission!=="granted") return;
+    const opts={body, icon:"./icons/icon-192.png", badge:"./icons/icon-192.png", tag:tag||"req", renotify:true};
+    if(navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(r=>r.showNotification(title, opts)).catch(()=>{ try{ new Notification(title, opts); }catch(e){} });
+    else new Notification(title, opts); }catch(e){}
+}
+// Called from the Firestore listener: shows a toast + a local notification for new requests to me / requests of mine that got paid.
+function onRequestsUpdate(rows){
+  const prev=S._reqSeen; S.requests=rows;
+  if(prev){
+    for(const r of rows){ const was=prev[r.id];
+      if(!was && r.to===uid && r.status==="open"){ const p=byId(S.players,r.from); toast(`${p?.first||"Someone"} asks you for ${money(r.amount)}`); localNotify(`${fullName(p)} asks you for ${money(r.amount)}`, r.note||"Open the app to pay in one tap.", "req-"+r.id); }
+      if(was && was!==r.status && r.from===uid && r.status==="paid"){ const p=byId(S.players,r.to); toast(`${p?.first||"Someone"} paid your request`); localNotify(`${fullName(p)} paid ${money(r.amount)}`, "Your request is settled.", "req-"+r.id); }
+      if(was && was!==r.status && r.from===uid && r.status==="declined"){ const p=byId(S.players,r.to); toast(`${p?.first||"Someone"} declined your request`); }
+    }
+  }
+  S._reqSeen=Object.fromEntries(rows.map(r=>[r.id,r.status]));
+}
+function sheetRequest(team, to, amt, note){
+  const members=S.players.filter(p=>p.team===team && isActive(p) && p.id!==uid).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  if(!members.length){ toast("Nobody else in your club yet"); return; }
+  const tm=teamMoney(team); const owes=id=>{ const x=tm.transfers.find(t=>t.from===id && t.to===uid); return x?Math.round(x.amt):0; };
+  openSheet("Request money", `<form id="reqForm" class="stack"><p class="small muted" style="margin:0">The person gets a notification and a Pay button with your PayPal / IBAN. ${hasPayInfo(me())?"":"<b>Tip:</b> add your payment details (Edit profile) so they can pay in one tap."}</p>
+    <label class="f">From whom<select id="rqTo">${members.map(p=>`<option value="${p.id}" ${p.id===to?"selected":""}>${esc(fullName(p))}${owes(p.id)?` · owes you ${esc(money(owes(p.id)))}`:""}</option>`).join("")}</select></label>
+    <div class="row"><label class="f grow">Amount (${esc(S.event.currency||"€")})<input id="rqAmt" required inputmode="decimal" value="${amt?(amt/100).toFixed(2):""}" placeholder="12.00"></label></div>
+    <label class="f">What for<input id="rqNote" value="${esc(note||"")}" placeholder="${esc(tm.fee?.mode==="monthly"?"Club fee":"Court share Sunday")}" maxlength="80"></label>
+  </form>`, `<button class="btn primary" data-act="sendRequest" data-team="${team}">Send request</button>`);
+  $("#rqTo").addEventListener("change", e=>{ const n=owes(e.target.value); if(n) $("#rqAmt").value=(n/100).toFixed(2); });
+}
+async function sendRequest(team){
+  const f=$("#reqForm"); if(!f.reportValidity()) return; const to=$("#rqTo").value; const amt=Math.round(parseFloat($("#rqAmt").value.replace(",","."))*100); if(!(amt>0)){ toast("Enter a valid amount"); return; }
+  const note=$("#rqNote").value.trim(); const id=store.newId();
+  await store.set("requests", id, {team, from:uid, fromName:fullName(me()), to, toName:fullName(byId(S.players,to)), amount:amt, note, status:"open", notifyPending:true, createdAt:Date.now(), updatedAt:Date.now()});
+  audit("payment", `requested ${money(amt)} from ${fullName(byId(S.players,to))}${note?" · "+note:""}`, {team});
+  closeSheet(); toast(`Request sent to ${byId(S.players,to)?.first||"them"}`);
+}
+function requestsBanner(){
+  const list=reqOpenToMe(); if(!list.length || amInactive()) return "";
+  return list.slice(0,3).map(r=>{ const p=byId(S.players,r.from); return `<div class="banner" style="display:block;background:var(--team-a-soft);color:var(--fg)"><div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span><b>${esc(p?fullName(p):r.fromName||"Someone")}</b> asks you for <b>${esc(money(r.amount))}</b>${r.note?`<br><span class="small" style="font-weight:400">${esc(r.note)}</span>`:""}</span></span><span class="row" style="gap:6px;flex:none"><button class="btn primary sm" data-act="payRequest" data-id="${r.id}">Pay</button><button class="btn ghost sm" data-act="declineRequest" data-id="${r.id}">Decline</button></span></div></div>`; }).join("");
+}
+function requestsCard(t){
+  const toMe=reqOpenToMe().filter(r=>r.team===t), mine=reqMine().filter(r=>r.team===t).slice(0,8);
+  if(!toMe.length && !mine.length) return "";
+  const row=(r, incoming)=>{ const p=byId(S.players, incoming?r.from:r.to); const age=Math.floor((Date.now()-r.createdAt)/864e5);
+    return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="min-width:0"><b>${incoming?"":"to "}${esc(p?fullName(p):(incoming?r.fromName:r.toName)||"?")}</b> · ${esc(money(r.amount))}${r.note?`<br><span class="tiny muted">${esc(r.note)}</span>`:""}<br><span class="tiny muted">${age===0?"today":age===1?"yesterday":age+" days ago"}</span></span></span>
+      <span class="row" style="gap:6px;flex:none">${incoming ? `<button class="btn primary sm" data-act="payRequest" data-id="${r.id}">Pay</button><button class="btn ghost sm" data-act="declineRequest" data-id="${r.id}">Decline</button>` : r.status==="open" ? `${reqStatusPill(r)}<button class="btn ghost sm" data-act="remindRequest" data-id="${r.id}" ${r.notifyPending?"disabled":""} title="Send another notification">Remind</button><button class="icon-btn" data-act="cancelRequest" data-id="${r.id}" aria-label="Cancel request">${ICONS.x}</button>` : reqStatusPill(r)}</span></div>`; };
+  return `<section class="card stack" style="gap:8px"><div class="sec-head"><h3>Payment requests</h3><button class="btn sm" data-act="requestMoney" data-team="${t}">Request money</button></div>
+    ${toMe.length?`<div class="small" style="font-weight:600;color:var(--muted)">To you</div>${toMe.map(r=>row(r,true)).join("")}`:""}
+    ${mine.length?`<div class="small" style="font-weight:600;color:var(--muted)">Yours</div>${mine.map(r=>row(r,false)).join("")}`:""}</section>`;
 }
 
 /* ---- Push notifications (FCM) ---- */
@@ -1800,7 +1858,14 @@ document.addEventListener("click", e => {
     savePayment: ()=> guard(async ()=>{ const f=$("#payForm"); if(!f.reportValidity()) return; const amt=Math.round(parseFloat($("#pAmount").value.replace(",","."))*100); const from=$("#pFrom").value, to=$("#pTo").value; const tre=teamMoney(b.dataset.team).fee?.treasurer; if(!(amt>0)||(from===to && to!==tre)){ toast("Check the amount and people"); return; }
       await store.set("expenses", store.newId(), {scope:"team", type:"payment", team:b.dataset.team, from, to, amount:amt, date:$("#pDate").value, title:"Payment", createdBy:uid||null, createdAt:Date.now()}); audit("payment", `${fullName(byId(S.players,from))} → ${to===tre?"club pot":fullName(byId(S.players,to))} ${money(amt)}`, {team:b.dataset.team}); closeSheet(); toast("Payment recorded"); }),
     payTo: ()=> sheetPay(b.dataset.team, b.dataset.to, +b.dataset.amt||0),
-    markPaid: ()=> guard(async ()=>{ const amt=+b.dataset.amt||0, to=b.dataset.to, t=b.dataset.team; if(!(amt>0)) return; await store.set("expenses", store.newId(), {scope:"team", type:"payment", team:t, from:uid, to, amount:amt, date:localISO(new Date()), title:"Payment", createdBy:uid||null, createdAt:Date.now()}); audit("payment", `${fullName(me())} → ${to===teamMoney(t).fee?.treasurer?"club pot":fullName(byId(S.players,to))} ${money(amt)}`, {team:t}); closeSheet(); toast("Marked as paid"); }),
+    requestMoney: ()=> sheetRequest(b.dataset.team||myTeam(), b.dataset.to||"", +b.dataset.amt||0, b.dataset.note||""),
+    sendRequest: ()=> guard(()=>sendRequest(b.dataset.team||myTeam())),
+    payRequest: ()=>{ const r=byId(S.requests,id); if(r) sheetPay(r.team, r.from, r.amount, r.id); },
+    declineRequest: ()=> confirmSheet("Decline request", `Decline the request from <b>${esc(byId(S.players,byId(S.requests,id)?.from)?.first||"them")}</b>? They'll see it as declined — talk to them if the amount is wrong.`, "Decline", ()=>guard(async ()=>{ await store.update("requests", id, {status:"declined", declinedAt:Date.now(), updatedAt:Date.now()}); })),
+    cancelRequest: ()=> guard(async ()=>{ await store.update("requests", id, {status:"cancelled", cancelledAt:Date.now(), notifyPending:false, updatedAt:Date.now()}); toast("Request cancelled"); }),
+    remindRequest: ()=> guard(async ()=>{ await store.update("requests", id, {notifyPending:true, remindedAt:Date.now(), updatedAt:Date.now()}); toast("Reminder queued"); }),
+    markPaid: ()=> guard(async ()=>{ const amt=+b.dataset.amt||0, to=b.dataset.to, t=b.dataset.team; if(!(amt>0)) return; const eid=store.newId(); await store.set("expenses", eid, {scope:"team", type:"payment", team:t, from:uid, to, amount:amt, date:localISO(new Date()), title:"Payment", createdBy:uid||null, createdAt:Date.now()});
+      if(b.dataset.req){ await store.update("requests", b.dataset.req, {status:"paid", paidAt:Date.now(), expenseId:eid, paidNotify:true, updatedAt:Date.now()}); } audit("payment", `${fullName(me())} → ${to===teamMoney(t).fee?.treasurer?"club pot":fullName(byId(S.players,to))} ${money(amt)}`, {team:t}); closeSheet(); toast("Marked as paid"); }),
     copyIban: ()=> copyText(fmtIban(b.dataset.iban)),
     linkGoogle: ()=> linkGoogle(),
     restoreGoogle: ()=> restoreGoogle(),
@@ -1974,6 +2039,9 @@ async function boot(){
       resub("invites","invites", adm ? null : (t && canInvite()) ? {field:"createdBy", op:"==", value:uid} : false, rows=>{ S.invites=rows; });
       resub("audit","audit", adm ? null : (t && isClubAdmin(t)) ? {field:"team", op:"==", value:t} : false, rows=>{ S.audit=rows; });
       resub("seasons","seasons", adm ? null : t ? {field:"clubs", op:"array-contains", value:t} : false, rows=>{ S.seasons=rows; });
+      const mergeReq=()=>{ const seen=new Set(); onRequestsUpdate([...(S.scopedData.reqTo||[]),...(S.scopedData.reqFrom||[])].filter(r=>!seen.has(r.id)&&seen.add(r.id))); };
+      if(adm){ ["reqTo","reqFrom"].forEach(k=>{ S.scoped[k]?.(); S.scoped[k]=null; }); resub("reqAll","requests", null, rows=>onRequestsUpdate(rows)); }
+      else { S.scoped.reqAll?.(); S.scoped.reqAll=null; resub("reqTo","requests", uid?{field:"to", op:"==", value:uid}:false, rows=>{ S.scopedData.reqTo=rows; mergeReq(); }); resub("reqFrom","requests", uid?{field:"from", op:"==", value:uid}:false, rows=>{ S.scopedData.reqFrom=rows; mergeReq(); }); }
       const mergeOwn = ()=>{ const seen=new Set(); S.scopedData.teamExpenses=[...(S.scopedData.own1||[]),...(S.scopedData.own2||[]),...(S.scopedData.own3||[]),...(S.scopedData.own4||[])].filter(e=> e.scope==="team" && !seen.has(e.id) && seen.add(e.id)); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; };
       if(inactive){ // an inactive member keeps read access to the costs and payments they are part of
         resub("teamExpenses","expenses", false, ()=>{});

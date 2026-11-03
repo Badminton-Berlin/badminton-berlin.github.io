@@ -1,6 +1,7 @@
-// Runs hourly on GitHub Actions (see .github/workflows/notify.yml):
+// Runs every 20 minutes on GitHub Actions (see .github/workflows/notify.yml):
 //  1. new-member alerts: a push to the club's admins (and global admins) when someone has registered since the last run;
-//  2. the weekly "who's coming?" reminder, sent at 07:00 Berlin time on each club's vote day.
+//  2. the weekly "who's coming?" reminder, sent once on each club's vote day from 07:00 Berlin time;
+//  3. payment requests: a push to the payer when a request is created or re-sent, and to the requester when it is paid.
 // Needs the FIREBASE_SERVICE_ACCOUNT secret (service-account JSON from Firebase → Project settings → Service accounts).
 import admin from "firebase-admin";
 
@@ -53,8 +54,34 @@ for (const [id, p] of fresh) {
   await db.doc(`players/${id}`).set({ joinNotified: true }, { merge: true });
 }
 
-// ---- 2. Weekly session reminder (only around REMINDER_HOUR Berlin time, unless forced) ----
-if (!FORCE && now.getHours() !== REMINDER_HOUR) { console.log(`reminder: not the reminder hour (${now.getHours()}:00 Berlin) – done`); console.log("notifications sent:", sent); process.exit(0); }
+// ---- 1b. Payment requests: notify the payer of new (or re-sent) requests, and the requester when it is paid ----
+const money = c => (event.currency || "€") + (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nameOf = uid => { const p = players[uid]; return p ? `${p.first || ""} ${p.last || ""}`.trim() : "Someone"; };
+async function pushTo(uid, title, body, tag, link) {
+  const tok = tokenOf(uid); if (!tok) { console.log("no device for", nameOf(uid)); return false; }
+  try {
+    await admin.messaging().send({ token: tok, notification: { title, body }, webpush: { notification: { icon: APP_URL + "icons/icon-192.png", badge: APP_URL + "icons/icon-192.png", tag, renotify: true }, fcmOptions: { link: link || APP_URL } }, data: { url: link || APP_URL } });
+    sent++; return true;
+  } catch (e) { console.log("push failed", uid, e.code || e.message); if (/not-registered|invalid-argument|invalid-registration/.test(e.code || "")) await db.doc(`pushTokens/${uid}`).delete(); return false; }
+}
+const pending = (await db.collection("requests").where("notifyPending", "==", true).get()).docs;
+for (const d of pending) {
+  const r = d.data(); if (r.status !== "open") { await d.ref.set({ notifyPending: false }, { merge: true }); continue; }
+  const ok = await pushTo(r.to, `${nameOf(r.from)} asks you for ${money(r.amount)}`, `${r.note ? r.note + " · " : ""}Tap to pay in one tap (PayPal / bank).`, "req-" + d.id, APP_URL + "#money");
+  console.log("payment request", nameOf(r.from), "→", nameOf(r.to), money(r.amount), ok ? "sent" : "no device");
+  await d.ref.set({ notifyPending: false, notifiedAt: Date.now() }, { merge: true });
+}
+const paidReqs = (await db.collection("requests").where("paidNotify", "==", true).get()).docs;
+for (const d of paidReqs) {
+  const r = d.data();
+  const ok = await pushTo(r.from, `${nameOf(r.to)} paid ${money(r.amount)}`, `Your request${r.note ? " for " + r.note : ""} is settled.`, "req-" + d.id, APP_URL + "#money");
+  console.log("paid notice →", nameOf(r.from), ok ? "sent" : "no device");
+  await d.ref.set({ paidNotify: false }, { merge: true });
+}
+
+// ---- 2. Weekly session reminder: on each club's vote day, once, any run at or after REMINDER_HOUR Berlin time ----
+// (GitHub runs scheduled jobs late or skips some, so "at or after" rather than "exactly at" the hour.)
+if (!FORCE && now.getHours() < REMINDER_HOUR) { console.log(`reminder: before the reminder hour (${now.getHours()}:00 Berlin) – done`); console.log("notifications sent:", sent); process.exit(0); }
 for (const t of ["A","B"]) {
   const cfg = (await db.doc(`teams/${t}`).get()).data();
   if (!cfg || !cfg.enabled) { console.log(t, "no regular session"); continue; }
