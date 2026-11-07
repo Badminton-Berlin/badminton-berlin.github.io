@@ -300,7 +300,7 @@ function selectEvent(id){ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recom
 async function clearEv(col){ for(const x of (col==="matches"?S.matches:S.pairs)) await store.remove(col, x.id); }
 
 /* ---------------- Store abstraction (Firebase or local demo) ---------------- */
-const COLS = ["players","pairs","matches","expenses","settings","sessions","teams","pushTokens","events","invites","audit","seasons","requests"];
+const COLS = ["players","pairs","matches","expenses","settings","sessions","teams","pushTokens","events","invites","audit","seasons","requests","eventRegs"];
 let store, uid = null, isDemo = !FIREBASE_CONFIG;
 
 function uidKey(){ return "ppc_uid"; }
@@ -364,7 +364,7 @@ async function makeFirebaseStore(){
 }
 
 /* ---------------- State ---------------- */
-const S = { event: {...DEFAULT_EVENT}, ev:{id:"main"}, eventId: lsGet("ppc_event", null), events: [], settingsEvent: null, allPairs: [], allMatches: [], admins: null, players: [], pairs: [], matches: [], expenses: [], sessions: [], teams: [], invites: [], audit: [], seasons: [], requests: [], pendingInvite:null, pushOn:false, fbApp:null, tab: "home", filter: "all", demoAdmin: lsGet("ppc_demo_admin", true), online:true };
+const S = { event: {...DEFAULT_EVENT}, ev:{id:"main"}, eventId: lsGet("ppc_event", null), events: [], settingsEvent: null, allPairs: [], allMatches: [], admins: null, players: [], pairs: [], matches: [], expenses: [], sessions: [], teams: [], invites: [], audit: [], seasons: [], requests: [], allRegs: [], pendingInvite:null, pushOn:false, fbApp:null, tab: "home", filter: "all", demoAdmin: lsGet("ppc_demo_admin", true), online:true };
 const isAdmin = ()=> isDemo ? S.demoAdmin : !!(S.admins && uid && S.admins.uids && S.admins.uids.includes(uid));
 const me = ()=> S.players.find(p => p.id === uid) || null;
 const byId = (arr, id)=> arr.find(x=>x.id===id);
@@ -502,7 +502,7 @@ function avatar(p, cls=""){ const t=p?.team||""; return (p?.photo && /^data:imag
 
 function renderTabs(){
   const tabs = amInactive() ? [["home","Home"],["money","Money"]] : [["home","Home"],["sessions","Sessions"],["matches","Matches"],["money","Money"],["players","Players"]];
-  if(isAdmin()) tabs.push(["admin","Admin"]);
+  if(isAdmin()) tabs.push(["admin","Admin"]); else if(!amInactive() && isClubAdmin(myTeam())) tabs.push(["admin","Manage"]);
   $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${S.tab===k||((S.tab==="event"||S.tab==="history"||S.tab==="help")&&k==="home")||((S.tab==="report"||S.tab==="audit")&&k==="admin")?"page":"false"}">${ICONS[k]}${l}</button>`).join("");
 }
 function render(){
@@ -511,7 +511,7 @@ function render(){
   const mt=myTeam(); $("#hdrEyebrow").textContent = mt ? `${teamName(mt)}${isAdmin()?" · admin":isClubAdmin(mt)?" · club admin":amInactive()?" · inactive":""}` : `${S.event.teamA} · ${S.event.teamB}`;
   const m = me(); $("#meBtn").innerHTML = m ? avatar(m,"sm") : `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
   renderTabs();
-  if(S.tab==="admin" && !isAdmin()) S.tab="home";
+  if(S.tab==="admin" && !isAdmin() && !isClubAdmin(myTeam())) S.tab="home";
   if(S.tab==="audit" && !(isAdmin() || isClubAdmin(myTeam()))) S.tab="home";
   if(amInactive() && !["home","money","history","help"].includes(S.tab)) S.tab="home";
   const fn = {home:vHome, help:vHelp, event:vEvent, history:vHistory, report:vReport, audit:vAudit, sessions:vSessions, players:vPlayers, matches:vMatches, money:vMoney, admin:vAdmin}[S.tab];
@@ -533,7 +533,7 @@ function renderDemoBar(){
 /* ---- Home ---- */
 function vEvent(){
   const e=S.event, st=standings().t, m=me();
-  const nA=S.players.filter(p=>p.team==="A").length, nB=S.players.filter(p=>p.team==="B").length;
+  const nA=poolTeam("A").length, nB=poolTeam("B").length;
   const pA=S.pairs.filter(p=>p.team==="A").length, pB=S.pairs.filter(p=>p.team==="B").length;
   const done=S.matches.filter(x=>matchResult(x).done).length;
   const target = new Date((e.date||"2027-01-16")+"T"+(e.time||"10:00")+":00");
@@ -555,7 +555,7 @@ function vEvent(){
     ${diff>0 ? `<div class="countdown"><div><b>${d}</b><span>days</span></div><div><b>${h}</b><span>hours</span></div><div><b>${mi}</b><span>min</span></div></div>` : `<div class="pill live" style="justify-self:start">${done===S.matches.length&&S.matches.length?"Finished":"Match day"}</div>`}
   </section>
   <div class="stats">
-    <div class="stat"><b>${S.players.length}</b><span>Registered</span></div>
+    <div class="stat"><b>${evPool().length}</b><span>${usingAllMembers()?"Members":"Playing"}</span></div>
     <div class="stat"><b>${S.matches.length||projected.total}</b><span>${S.matches.length?"Matches":"Projected"}</span></div>
     <div class="stat"><b>${done}/${S.matches.length}</b><span>Played</span></div>
   </div>
@@ -564,6 +564,7 @@ function vEvent(){
     <p class="lead" style="margin:0">${projectedText(projected)}</p>
     <button class="btn block" data-act="rules">Rules &amp; how we play</button>
   </section>
+  ${participantsCard()}
   ${next.length ? `<section class="stack"><div class="sec-head"><h3>Up next</h3><button class="btn ghost sm" data-act="tab" data-tab="matches">All matches</button></div>${next.map(matchCard).join("")}</section>` : ""}
   ${S.matches.length ? `<section class="card stack"><h3>Standings</h3>${standingsTable()}</section>` : ""}`;
 }
@@ -621,7 +622,7 @@ function vHome(){
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
-    const nA=S.players.filter(p=>p.team==="A").length, nB=S.players.filter(p=>p.team==="B").length, target=S.event.matchesPerPlayer||3;
+    const nA=poolTeam("A").length, nB=poolTeam("B").length, target=S.event.matchesPerPlayer||3;
     const per=Math.min(Math.floor(nA/2),Math.floor(nB/2)), courts=S.event.courts||1;
     if(!per) return {rotation:true, nA, nB, per:0, total:0, rounds:0, perA:0, perB:0, block:0, q:0};
     const gcd=(a,b)=> b? gcd(b,a%b) : a, lcm=(a,b)=> a*b/gcd(a,b);
@@ -630,8 +631,8 @@ function projectFixtures(){
     const total=q*block;
     return {rotation:true, nA, nB, per, block, q, total, rounds: Math.ceil(total/per)*Math.ceil(per/courts), perA:2*total/nA, perB:2*total/nB, target};
   }
-  const pA = S.pairs.filter(p=>p.team==="A").length || Math.floor(S.players.filter(p=>p.team==="A").length/2);
-  const pB = S.pairs.filter(p=>p.team==="B").length || Math.floor(S.players.filter(p=>p.team==="B").length/2);
+  const pA = S.pairs.filter(p=>p.team==="A").length || Math.floor(poolTeam("A").length/2);
+  const pB = S.pairs.filter(p=>p.team==="B").length || Math.floor(poolTeam("B").length/2);
   const legs = S.event.legs||1; const total = pA*pB*legs;
   const courts = S.event.courts||1; const perRound = Math.min(pA,pB)||1; const rounds = total ? Math.max(pA,pB)*legs*Math.ceil(perRound/courts) : 0;
   return {pA,pB,legs,total,rounds, perA:pB*legs, perB:pA*legs};
@@ -655,6 +656,7 @@ function standingsTable(){
 
 /* ---- Players ---- */
 function vPlayers(){
+  if(!isAdmin()) return vPlayersClub();
   const {playerStats} = standings();
   const list = (t)=>{
     const ps = S.players.filter(p=>p.team===t && isActive(p)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
@@ -720,7 +722,7 @@ function matchCard(m){
 function vMatches(){
   if(!S.matches.length){
     const p = projectFixtures();
-    return `<div class="empty"><b>No fixtures yet</b>${isAdmin()?(S.event.format==="rotation"?"Generate the schedule in Admin once both teams have registered.":"Build the pairs in Admin, then generate the schedule."):"The organiser hasn't generated the schedule yet."}<br><span class="small">${projectedText(p).replace(/<[^>]+>/g,"")}</span></div>`;
+    return `<div class="empty"><b>No fixtures yet</b>${canManageEvent(S.ev)?(S.event.format==="rotation"?"Generate the schedule under Admin once people have signed up.":"Build the pairs under Admin, then generate the schedule."):"The organiser hasn't generated the schedule yet."}<br><span class="small">${projectedText(p).replace(/<[^>]+>/g,"")}</span></div>`;
   }
   const f = S.filterM||"all";
   let ms = [...S.matches].sort((a,b)=>a.order-b.order);
@@ -745,7 +747,7 @@ function h2hGrid(){
 }
 function sheetMatch(id){
   const m = byId(S.matches,id); if(!m) return;
-  const canScore = isAdmin() || (S.event.allowPlayerScores && me());
+  const canScore = canManageEvent(S.ev) || (S.event.allowPlayerScores && me());
   const pa=byId(S.allPairs,m.pairA), pb=byId(S.allPairs,m.pairB);
   const bestOf = S.event.bestOf||3;
   const games = Array.from({length:bestOf},(_,i)=> (m.games||[])[i] || ["",""]);
@@ -760,10 +762,10 @@ function sheetMatch(id){
         <span class="muted">:</span>
         <div class="sc"><input inputmode="numeric" pattern="[0-9]*" id="gB${i}" name="b${i}" value="${g[1]}" placeholder="0" aria-label="Game ${i+1} ${esc(S.event.shortB)}"><div class="pm"><button type="button" data-pm="-" data-for="gB${i}" aria-label="minus">−</button><button type="button" data-pm="+" data-for="gB${i}" aria-label="plus">+</button></div></div>
       </div></div>`).join("")}
-      ${isAdmin()?`<div class="stack" style="gap:6px"><div class="glabel">Walkover</div><div class="seg"><button type="button" data-wo="" aria-pressed="${!m.walkover}">None</button><button type="button" class="A" data-wo="A" aria-pressed="${m.walkover==="A"}">${esc(S.event.shortA)} wins</button><button type="button" class="B" data-wo="B" aria-pressed="${m.walkover==="B"}">${esc(S.event.shortB)} wins</button></div></div>
+      ${canManageEvent(S.ev)?`<div class="stack" style="gap:6px"><div class="glabel">Walkover</div><div class="seg"><button type="button" data-wo="" aria-pressed="${!m.walkover}">None</button><button type="button" class="A" data-wo="A" aria-pressed="${m.walkover==="A"}">${esc(S.event.shortA)} wins</button><button type="button" class="B" data-wo="B" aria-pressed="${m.walkover==="B"}">${esc(S.event.shortB)} wins</button></div></div>
       <div class="row"><label class="f grow">Round<input type="number" id="mRound" min="1" value="${m.round}"></label><label class="f grow">Court<input type="number" id="mCourt" min="1" value="${m.court}"></label></div>`:""}
     </form>` : `<div class="stack">${games.filter(g=>g[0]!==""||g[1]!=="").map((g,i)=>`<div class="row spread"><span class="muted">Game ${i+1}</span><span class="num" style="font-size:22px;font-weight:700">${g[0]||0} : ${g[1]||0}</span></div>`).join("") || `<div class="empty">Not played yet.</div>`}</div>`}`;
-  openSheet("Match", body, canScore ? `<button class="btn primary" data-act="saveScore" data-id="${id}">Save score</button>${isAdmin()?`<button class="btn danger" data-act="delMatch" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}` : "");
+  openSheet("Match", body, canScore ? `<button class="btn primary" data-act="saveScore" data-id="${id}">Save score</button>${canManageEvent(S.ev)?`<button class="btn danger" data-act="delMatch" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}` : "");
   if(canScore){ S._wo = m.walkover||""; }
 }
 
@@ -778,7 +780,7 @@ function vMoney(){
   const list = S.expenses.filter(e=>(!e.scope || e.scope==="event") && inEv(e)).sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.createdAt||0)-(a.createdAt||0));
   return seg + `
   <div class="stats"><div class="stat"><b>${esc(money(total))}</b><span>Total</span></div><div class="stat"><b>${esc(money(Math.round(perHead)))}</b><span>Per head</span></div><div class="stat"><b class="balance ${mine?(mine.paid-mine.owes>=0?"pos":"neg"):""}">${mine?esc(money(Math.round(mine.paid-mine.owes))):"—"}</b><span>Your balance</span></div></div>
-  ${isAdmin()?`<button class="btn primary block" data-act="addExpense">Add expense</button>`:""}
+  ${canManageEvent(S.ev)?`<button class="btn primary block" data-act="addExpense">Add expense</button>`:""}
   <section class="stack"><div class="sec-head"><h3>Expenses</h3><span class="small muted">${list.length} item${list.length===1?"":"s"}</span></div>
   ${list.length?`<div class="list">${list.map(e=>`<button class="item" data-act="expense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>${esc(e.category||"Other")} · paid by ${esc(fullName(byId(S.players,e.paidBy))||"team pot")}${e.split&&e.split!=="all"?" · split "+esc(teamShort(e.split)):""}</span></div><span class="amt">${esc(money(e.amount))}</span></button>`).join("")}</div>`:`<div class="empty"><b>No expenses yet</b>Court booking, shuttles and snacks go here. Everyone sees the total and their share.</div>`}</section>
   ${S.players.length && S.expenses.length ? `<section class="card stack"><h3>Who owes what</h3><div class="scroll-x"><table class="table"><thead><tr><th>Player</th><th class="n">Paid</th><th class="n">Share</th><th class="n">Balance</th></tr></thead><tbody>
@@ -803,8 +805,12 @@ function sheetExpense(id){
 
 /* ---- Admin ---- */
 function vAdmin(){
+  if(!isAdmin()) return vClubAdmin();
+  return vAdminEventSections() + vAdminGlobalSections();
+}
+function vAdminEventSections(){
   const e=S.event, proj=projectFixtures();
-  const unpaired = t => S.players.filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id)));
+  const unpaired = t => poolTeam(t).filter(p=>!S.pairs.some(x=>(x.players||[]).includes(p.id)));
   const pairsOf = t => S.pairs.filter(p=>p.team===t).sort((a,b)=>(a.order||0)-(b.order||0));
   const hasScores = S.matches.some(m=>(m.games||[]).some(g=>g[0]!==""&&g[0]!=null) || m.walkover);
   const pairCol = t => `<div class="stack" style="gap:8px"><div class="sec-head"><span class="pill ${t}">${esc(teamShort(t))}</span><span class="small muted">${pairsOf(t).length} pairs · ${unpaired(t).length} unpaired</span></div>
@@ -817,7 +823,8 @@ function vAdmin(){
     <div class="sec-head"><h3>Event</h3><span class="row" style="gap:6px"><button class="btn sm" data-act="newEvent">New</button><button class="btn sm" data-act="editEvent">Edit</button></span></div>
     <div class="tiny muted">Selected on Home: everything below (pairs, schedule, challenge costs) belongs to this event.</div>
     <div class="small"><b>${esc(e.name)}</b><br>${esc(fmtDate(e.date))}${e.time?" · "+esc(e.time):""} · ${esc(e.venue)}<br>${e.courts} court${e.courts>1?"s":""} · best of ${e.bestOf} to ${e.pointsTo} · ${e.format==="rotation"?`rotation, ${e.matchesPerPlayer||3} matches per player`:`fixed pairs, ${e.legs} leg${e.legs>1?"s":""}`}</div>
-    <div class="row"><span class="pill ${e.registrationOpen?"good":"warn"}">Registration ${e.registrationOpen?"open":"closed"}</span><span class="pill ${e.allowPlayerScores?"good":""}">Players ${e.allowPlayerScores?"can":"can't"} enter scores</span></div>
+    <div class="row"><span class="pill ${signupOpen(S.ev)?"good":"warn"}">Sign-up ${signupOpen(S.ev)?"open":"closed"}</span><span class="pill">${evRegs().length} signed up</span>${isAdmin()?`<span class="pill ${e.registrationOpen?"good":"warn"}">App registration ${e.registrationOpen?"open":"closed"}</span><span class="pill ${e.allowPlayerScores?"good":""}">Players ${e.allowPlayerScores?"can":"can't"} enter scores</span>`:""}</div>
+    ${usingAllMembers()?`<div class="tiny" style="color:var(--warn)">Nobody has signed up yet — pairs and schedule below use all members of the clubs. Members join on the event screen; you can add them there too.</div>`:""}
   </section>
   ${e.format==="rotation" ? `<section class="card stack"><div class="sec-head"><h3>Pairs</h3><span class="pill">rotation</span></div><div class="small muted">Pairs are formed automatically for every match so partners rotate. Switch to “Fixed pairs” in Event settings to pick pairs by hand.</div></section>` : `<section class="card stack">
     <div class="sec-head"><h3>Pairs</h3>${picked.length===2?`<button class="btn primary sm" data-act="makePair">Pair ${esc(picked[0].first)} + ${esc(picked[1].first)}</button>`:`<span class="small muted">${picked.length===1?"Tap a team-mate to pair":"Tap two names to pair them"}</span>`}</div>
@@ -834,6 +841,11 @@ function vAdmin(){
     </div>
     ${hasScores?`<span class="small" style="color:var(--warn)">Scores exist. Regenerating or clearing removes them.</span>`:""}
   </section>
+  `;
+}
+function vAdminGlobalSections(){
+  const e=S.event;
+  return `
   <section class="card stack">
     <div class="sec-head"><h3>Players</h3><button class="btn sm" data-act="addPlayer">Add manually</button></div>
     <div class="small muted">${S.players.length} registered · ${S.players.filter(p=>p.team==="A").length} ${esc(e.shortA)} · ${S.players.filter(p=>p.team==="B").length} ${esc(e.shortB)}. Tap a player in the Players tab to edit, move or remove them.</div>
@@ -920,18 +932,19 @@ function sheetEvent(){
     <label class="f">Description<textarea id="evDesc" placeholder="What this event is about, who it's for.">${esc(e.description||"")}</textarea></label>
     <div class="row"><label class="f grow">Date<input type="date" id="evDate" value="${esc(e.date)}"></label><label class="f grow">Start time<input type="time" id="evTime" value="${esc(e.time||"")}"></label></div>
     <label class="f">Venue<input id="evVenue" value="${esc(e.venue)}"></label>
-    <div class="row"><label class="f grow">Team A<input id="evTeamA" value="${esc(e.teamA)}"></label><label class="f" style="width:84px">Short<input id="evShortA" maxlength="4" value="${esc(e.shortA)}"></label></div>
-    <div class="row"><label class="f grow">Team B<input id="evTeamB" value="${esc(e.teamB)}"></label><label class="f" style="width:84px">Short<input id="evShortB" maxlength="4" value="${esc(e.shortB)}"></label></div>
+    ${isAdmin()?`<div class="row"><label class="f grow">Team A<input id="evTeamA" value="${esc(e.teamA)}"></label><label class="f" style="width:84px">Short<input id="evShortA" maxlength="4" value="${esc(e.shortA)}"></label></div>
+    <div class="row"><label class="f grow">Team B<input id="evTeamB" value="${esc(e.teamB)}"></label><label class="f" style="width:84px">Short<input id="evShortB" maxlength="4" value="${esc(e.shortB)}"></label></div>`:""}
     <label class="f">Schedule format<select id="evFormat"><option value="fixed" ${e.format!=="rotation"?"selected":""}>Fixed pairs — every pair plays every opposing pair</option><option value="rotation" ${e.format==="rotation"?"selected":""}>Rotation (Davis Cup style) — partners change, everyone plays equally</option></select></label>
     <label class="f">Matches per player (rotation format)<input type="number" id="evMpp" min="1" max="12" value="${e.matchesPerPlayer||3}"><span class="help">Target. The app picks the nearest schedule size where every player of a team plays exactly the same number of matches.</span></label>
     <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs (fixed pairs)<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
     <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
-    <label class="f">App name (header)<input id="evApp" maxlength="30" value="${esc(e.appName||"Badminton Berlin")}"></label>
-    <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part in this event</span><label class="check"><input type="checkbox" class="evClub" value="A" ${evClubs(S.ev).includes("A")?"checked":""}> ${esc(e.teamA)}</label><label class="check"><input type="checkbox" class="evClub" value="B" ${evClubs(S.ev).includes("B")?"checked":""}> ${esc(e.teamB)}</label><span class="help">Members only see events their club takes part in.</span></div>
-    <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>
+    <label class="check"><input type="checkbox" id="evRegOpen" ${S.ev.regOpen!==false?"checked":""}> Members can sign up / leave themselves <span class="help">(closes automatically on the event day; organisers can always add people)</span></label>
+    ${isAdmin()?`<label class="f">App name (header)<input id="evApp" maxlength="30" value="${esc(e.appName||"Badminton Berlin")}"></label>
+    <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part in this event</span><label class="check"><input type="checkbox" class="evClub" value="A" ${evClubs(S.ev).includes("A")?"checked":""}> ${esc(e.teamA)}</label><label class="check"><input type="checkbox" class="evClub" value="B" ${evClubs(S.ev).includes("B")?"checked":""}> ${esc(e.teamB)}</label><span class="help">Members only see events their club takes part in. A single club's event can be organised by that club's admins.</span></div>
+    <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>`:""}
     <label class="f">House rules (shown at the top of the Rules page)<textarea id="evRules" placeholder="e.g. Bring your own racket. Nylon shuttles, Yonex Mavis 350. Doors open 9:30.">${esc(e.houseRules||"")}</textarea></label>
-    <label class="check"><input type="checkbox" id="evReg" ${e.registrationOpen?"checked":""}> Open registration <span class="help">(anyone with the link can register; when off, only people with an invite link or code)</span></label>
-    <label class="check"><input type="checkbox" id="evScores" ${e.allowPlayerScores?"checked":""}> Registered players may enter scores <span class="help">(otherwise admins only)</span></label>
+    ${isAdmin()?`<label class="check"><input type="checkbox" id="evReg" ${e.registrationOpen?"checked":""}> Open registration <span class="help">(anyone with the link can register; when off, only people with an invite link or code)</span></label>
+    <label class="check"><input type="checkbox" id="evScores" ${e.allowPlayerScores?"checked":""}> Registered players may enter scores <span class="help">(otherwise organisers only)</span></label>`:""}
   </form>`, `<button class="btn primary" data-act="saveEvent">Save</button>${allEvents().length>1?`<button class="btn danger" data-act="delEvent" style="flex:0 0 auto">Delete</button>`:""}`);
 }
 function sheetNewEvent(){
@@ -942,7 +955,7 @@ function sheetNewEvent(){
     <div class="row"><label class="f grow">Type<select id="neType">${Object.entries(EVENT_TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></label><label class="f grow">Courts<input type="number" id="neCourts" min="1" max="12" value="2"></label></div>
     <div class="row"><label class="f grow">Date<input type="date" id="neDate" required min="${todayISO()}"></label><label class="f grow">Start<input type="time" id="neTime" value="10:00"></label></div>
     <label class="f">Venue<input id="neVenue" placeholder="Preussenpark, Berlin"></label>
-    <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part</span><label class="check"><input type="checkbox" class="neClub" value="A" checked> ${esc(S.event.teamA)}</label><label class="check"><input type="checkbox" class="neClub" value="B" checked> ${esc(S.event.teamB)}</label><span class="help">Only members of these clubs will see the event. Pick one club for an internal event.</span></div>
+    ${isAdmin()?`<div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part</span><label class="check"><input type="checkbox" class="neClub" value="A" checked> ${esc(S.event.teamA)}</label><label class="check"><input type="checkbox" class="neClub" value="B" checked> ${esc(S.event.teamB)}</label><span class="help">Only members of these clubs will see the event. Pick one club for an internal event.</span></div>`:`<div class="banner info" style="display:block">Club event for <b>${esc(teamName(myTeam()))}</b> — only your members see it, and you organise it (pairs, schedule, scores, costs).</div>`}
     <label class="f">Description<textarea id="neDesc" placeholder="Open to both teams, bring a partner…"></textarea></label>
     <div class="row"><label class="f grow">Match format<select id="neFormat"><option value="fixed">Fixed pairs</option><option value="rotation">Rotation (equal matches)</option></select></label><label class="f grow">Matches per player<input type="number" id="neMpp" min="1" max="12" value="3"></label></div>
     <label class="f">Best of<select id="neBestOf"><option value="1">1 game</option><option value="3" selected>3 games</option><option value="5">5 games</option></select></label>
@@ -959,8 +972,8 @@ function eventsList(){
   const evs=[...allEvents()].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
   const t=todayISO(); const up=evs.filter(e=>e.date>=t), past=evs.filter(e=>e.date<t).reverse();
   const card = ev=>{ const st=eventStatus(ev); const sel=ev.id===S.eventId; const ms=S.allMatches.filter(m=>(m.eventId||"main")===ev.id); let score=""; if(ms.length){ let a=0,b=0; ms.forEach(m=>{const r=matchResult(m); if(r.winner==="A")a++; if(r.winner==="B")b++;}); score=`${S.event.shortA} ${a}–${b} ${S.event.shortB}`; }
-    return `<button class="item ${sel?"sel":""}" data-act="openEvent" data-id="${ev.id}" style="${sel?"background:color-mix(in srgb,var(--accent) 12%,var(--surface))":""}">${eventLogo(ev)?`<img class="avatar" style="border-radius:10px" src="${eventLogo(ev)}" alt="">`:`<div class="avatar" style="border-radius:10px">${esc((ev.name||"?").slice(0,2).toUpperCase())}</div>`}<div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))}${ev.time?" · "+esc(ev.time):""}${ev.venue?" · "+esc(ev.venue):""}</span></div><div class="stack" style="gap:4px;align-items:flex-end"><span class="pill ${st.k==="live"?"live":st.k==="done"?"":"good"}">${st.k==="done"&&score?esc(score):st.label}</span><span class="tiny muted">${esc(EVENT_TYPES[ev.type]||"Event")} · ${evClubs(ev).map(teamShort).map(esc).join(" + ")}</span></div></button>`; };
-  return `<section class="stack"><div class="sec-head"><h3>Events</h3>${isAdmin()?`<button class="btn sm" data-act="newEvent">New event</button>`:""}</div>
+    return `<button class="item ${sel?"sel":""}" data-act="openEvent" data-id="${ev.id}" style="${sel?"background:color-mix(in srgb,var(--accent) 12%,var(--surface))":""}">${eventLogo(ev)?`<img class="avatar" style="border-radius:10px" src="${eventLogo(ev)}" alt="">`:`<div class="avatar" style="border-radius:10px">${esc((ev.name||"?").slice(0,2).toUpperCase())}</div>`}<div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))}${ev.time?" · "+esc(ev.time):""}${ev.venue?" · "+esc(ev.venue):""}</span></div><div class="stack" style="gap:4px;align-items:flex-end"><span class="pill ${st.k==="live"?"live":st.k==="done"?"":"good"}">${st.k==="done"&&score?esc(score):st.label}</span><span class="tiny muted">${esc(EVENT_TYPES[ev.type]||"Event")} · ${evClubs(ev).map(teamShort).map(esc).join(" + ")}${isJoined(uid, ev.id)?" · you're in":""}</span></div></button>`; };
+  return `<section class="stack"><div class="sec-head"><h3>Events</h3>${isAdmin()?`<button class="btn sm" data-act="newEvent">New event</button>`:isClubAdmin(myTeam())?`<button class="btn sm" data-act="newEvent">New club event</button>`:""}</div>
     <div class="list">${up.map(card).join("")}${past.map(card).join("")}</div><div class="tiny muted">Tap an event for its poster, score, countdown and standings.</div></section>`;
 }
 function sheetAddMatch(){
@@ -1673,7 +1686,8 @@ function vHelp(){
     "Someone slow to pay? Tap <b>Request</b> next to their name (or <b>Request money</b> in Money). They get a notification and a Pay button; you see when it's paid. <b>Remind</b> sends it again."]),
     `<div class="tiny muted">Club money and challenge-day money are kept apart; both show on Home. Only you, your club and the admins see your balance.</div>`].join(""), true)}
   ${helpSection("5 · Events, matches and scores", li([
-    "Home lists the events your club takes part in. Tap one for the poster, the score between the clubs, the countdown, the format and standings.",
+    "Home lists the events your club takes part in. Tap one for the poster, the score between the clubs, the countdown, the format and standings — and <b>Join this event</b> under “Who's playing”. The organiser builds pairs and the schedule from the people who joined.",
+    "You only see your own club's members under Players; players of the other club appear on shared events (who's playing, pairs, matches).",
     "The organiser builds pairs and generates the schedule; under <b>Matches</b> your own matches are outlined, and the next ones show on Home under <b>Upcoming</b> next to your club sessions.",
     `Scores: ${S.event.allowPlayerScores?"tap your match, enter each game with − / +, <b>Save score</b>":"the organiser (or a scorer per court) enters them; ask if you may enter your own"}. A game goes to ${S.event.pointsTo||21} with a two-point lead (cap ${(S.event.pointsTo||21)+9}); a match is best of ${S.event.bestOf||3}. Standings, the player table and the head-to-head grid update live.`,
     "<b>Rules</b>: the document icon in the header shows your club's rules; game rules and the PDF guides are linked from there and from the event."]))}
@@ -1684,7 +1698,7 @@ function vHelp(){
   ${helpSection("7 · Who can do what", li([
     "<b>Member</b>: votes, ticks attendance, adds costs and payments for their club, enters scores if allowed, sees club events and everyone's player stats.",
     "<b>Guest</b>: same as a member for the sessions they are invited to; a one-session guest only sees that session. Guests pay no monthly fee.",
-    "<b>Club admin</b> (★): adds and deactivates members of their club, edits the club setup (day, place, rules, money mode), invites people, sees the club report and activity log.",
+    "<b>Club admin</b> (★): adds and deactivates members of their club, edits the club setup (day, place, rules, money mode), invites people, sees the club report and activity log, and organises the club's own events (Manage tab: pairs, schedule, scores, costs). A club can have several club admins.",
     "<b>Admin</b>: everything, for both clubs — events, pairs, schedule, challenge costs, seasons, backups.",
     "<b>Inactive</b>: set by a club admin when someone leaves; they keep their own history and balance but see no club activity until reactivated."]))}
   ${helpSection("8 · Notifications", li([
@@ -1761,6 +1775,69 @@ function requestsCard(t){
   return `<section class="card stack" style="gap:8px"><div class="sec-head"><h3>Payment requests</h3><button class="btn sm" data-act="requestMoney" data-team="${t}">Request money</button></div>
     ${toMe.length?`<div class="small" style="font-weight:600;color:var(--muted)">To you</div>${toMe.map(r=>row(r,true)).join("")}`:""}
     ${mine.length?`<div class="small" style="font-weight:600;color:var(--muted)">Yours</div>${mine.map(r=>row(r,false)).join("")}`:""}</section>`;
+}
+
+/* ---------------- Event participation (sign-up) + club-only visibility + club admins managing their club's events ---------------- */
+// Who may organise an event: global admins, or a club admin when the event belongs to their club alone.
+const canManageEvent = ev => !!ev && (isAdmin() || (evClubs(ev).length===1 && isClubAdmin(evClubs(ev)[0])));
+const evRegs = (evId=S.eventId) => (S.allRegs||[]).filter(r=>r.eventId===(evId||"main"));
+const isJoined = (pid=uid, evId=S.eventId) => evRegs(evId).some(r=>r.uid===pid);
+const signupOpen = ev => !!ev && ev.regOpen!==false && (ev.date||"9999")>=todayISO();
+// Players an event is built from: the ones who joined; when nobody has joined yet, every active member (the old behaviour).
+function evPool(evId=S.eventId){ const regs=evRegs(evId); if(regs.length) return regs.map(r=>byId(S.players,r.uid)).filter(p=>p&&isActive(p)); return activePlayers(); }
+const poolTeam = (t, evId=S.eventId) => evPool(evId).filter(p=>p.team===t);
+const usingAllMembers = (evId=S.eventId) => !evRegs(evId).length;
+async function joinEvent(pid, evId, by){
+  const p=byId(S.players,pid); if(!p) return; const id=`${evId}_${pid}`;
+  await store.set("eventRegs", id, {eventId:evId, uid:pid, team:p.team, at:Date.now(), by:by||pid});
+  audit("event", `${fullName(p)} joined ${allEvents().find(e=>e.id===evId)?.name||evId}${by&&by!==pid?" (added by "+fullName(me())+")":""}`, {team:p.team, eventId:evId});
+}
+async function leaveEvent(pid, evId){
+  const p=byId(S.players,pid); await store.remove("eventRegs", `${evId}_${pid}`);
+  audit("event", `${p?fullName(p):pid} left ${allEvents().find(e=>e.id===evId)?.name||evId}`, {team:p?.team||null, eventId:evId});
+}
+function participantsCard(){
+  const ev=S.ev; if(!ev) return ""; const clubs=evClubs(ev); const regs=evRegs(); const m=me(); const open=signupOpen(ev);
+  const mine = m && clubs.includes(m.team); const joined = isJoined();
+  const col = t=>{ const ps=regs.filter(r=>r.team===t).map(r=>byId(S.players,r.uid)).filter(Boolean).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+    const canAdd = (canManageEvent(ev) || isClubAdmin(t)) && (open || isAdmin());
+    const rest = canAdd ? S.players.filter(p=>p.team===t && isActive(p) && !p.sessionOnly && !ps.some(x=>x.id===p.id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))) : [];
+    return `<div class="stack" style="gap:6px"><div class="sec-head"><span class="pill ${t}">${esc(teamShort(t))}</span><span class="small muted">${ps.length} in</span></div>
+      ${ps.length?`<div class="chips">${ps.map(p=>`<button class="chip" data-act="player" data-id="${p.id}" aria-pressed="${p.id===uid}">${avatar(p,"sm")}${esc(p.first)}${canAdd&&p.id!==uid?`<span data-act="unjoin" data-id="${p.id}" style="margin-left:4px;opacity:.6">✕</span>`:""}</button>`).join("")}</div>`:`<div class="tiny muted">Nobody from ${esc(teamName(t))} yet.</div>`}
+      ${rest.length?`<details><summary class="tiny muted" style="cursor:pointer">Add a ${esc(teamShort(t))} member…</summary><div class="chips" style="margin-top:6px">${rest.map(p=>`<button class="chip" data-act="joinFor" data-id="${p.id}">${avatar(p,"sm")}${esc(p.first)}</button>`).join("")}</div></details>`:""}</div>`; };
+  return `<section class="card stack"><div class="sec-head"><h3>Who's playing</h3><span class="row" style="gap:6px;flex:none">${mine && !amInactive() ? (joined ? `<span class="pill good">you're in</span>${open?`<button class="btn ghost sm" data-act="leaveEvent">Leave</button>`:""}` : open ? `<button class="btn primary sm" data-act="joinEvent">Join this event</button>` : `<span class="pill">sign-up closed</span>`) : ""}${canManageEvent(ev)?`<button class="btn ghost sm" data-act="editEvent">Edit</button>`:""}</span></div>
+    ${!regs.length?`<div class="small muted">${open?"Nobody has signed up yet. Until someone does, the organiser's pairs and schedule use all members of the clubs.":"No sign-ups recorded; all members of the clubs count as playing."}</div>`:""}
+    <div class="${clubs.length>1?"pairgrid":"stack"}">${clubs.map(col).join("")}</div>
+    ${open?`<div class="tiny muted">Sign-up ${ev.regOpen===false?"is closed by the organiser":"closes on the event day"}. Pairs and the schedule are built from the people listed here.</div>`:""}</section>`;
+}
+// Players tab for members and club admins: only their own club. Admins see both clubs.
+function vPlayersClub(){
+  const t=myTeam(); if(!t) return `<div class="empty"><b>Register first</b>Your club's members appear here once you're registered.</div><button class="btn primary block" data-act="register">Register yourself</button>`;
+  const {playerStats}=standings();
+  const ps=S.players.filter(p=>p.team===t && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const inactive=S.players.filter(p=>p.team===t && !isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const row=p=>{ const s=playerStats[p.id]; const a=age(p.dob); const j=isJoined(p.id); return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.role==="clubAdmin"?' <span class="pill A" style="display:inline-flex">club admin</span>':p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}</b><span>${a!=null?a+" yrs":""}${j?` · in ${esc(S.ev?.name||"event")}`:""}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; };
+  if(S.filter==="stats") return `<div class="seg" data-seg="filter"><button class="${t}" aria-pressed="false" data-val="${t}">${esc(teamShort(t))}</button><button aria-pressed="true" data-val="stats">Stats</button></div>${playerStatsTable()}`;
+  return `<div class="seg" data-seg="filter"><button class="${t}" aria-pressed="true" data-val="${t}">${esc(teamName(t))} (${ps.length})</button><button aria-pressed="false" data-val="stats">Stats</button></div>
+    ${ps.length?`<div class="list">${ps.map(row).join("")}</div>`:`<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`}
+    ${canManage(t)&&inactive.length?`<div class="sec-head" style="margin-top:12px"><h3>Inactive (${inactive.length})</h3></div><div class="list">${inactive.map(p=>`<button class="item" data-act="player" data-id="${p.id}" style="opacity:.7">${avatar(p)}<div class="t"><b>${esc(fullName(p))}</b><span>inactive${p.deactivatedAt?" since "+esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10))):""}</span></div></button>`).join("")}</div>`:""}
+    <div class="tiny muted">Players of other clubs appear on the event screens (who's playing, pairs, matches, grid) of shared events.</div>
+    ${canInvite() ? `<button class="btn block" data-act="invite">Invite someone</button>` : ""}
+    ${isClubAdmin(t) ? `<button class="btn block" data-act="addPlayer">Add a member manually</button>` : ""}`;
+}
+// Club admin console: their club's events (create / manage), reports, activity log, account.
+function vClubAdmin(){
+  const t=myTeam(); const e=S.event; const mineEvs=allEvents().filter(ev=>evClubs(ev).length===1 && evClubs(ev)[0]===t);
+  const manage = canManageEvent(S.ev);
+  return `
+  <section class="card stack"><div class="sec-head"><h3>${esc(teamName(t))} events</h3><button class="btn sm" data-act="newEvent">New club event</button></div>
+    <div class="small muted">Events for your club only — you organise them here: pairs, schedule, scores, costs. Shared events with the other club are organised by the admins.</div>
+    ${mineEvs.length?`<div class="list">${mineEvs.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(ev=>`<button class="item ${ev.id===S.eventId?"sel":""}" data-act="openEvent" data-id="${ev.id}"><div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))} · ${evRegs(ev.id).length} signed up</span></div><span class="pill ${ev.id===S.eventId?"good":""}">${ev.id===S.eventId?"selected":"open"}</span></button>`).join("")}</div>`:""}
+  </section>
+  ${manage ? vAdminEventSections() : `<section class="card stack"><h3>Organise</h3><div class="small muted">Select one of your club's events above (or create one) to build pairs, generate the schedule and enter scores.</div></section>`}
+  <section class="card stack"><div class="sec-head"><h3>Reports</h3><button class="btn sm primary" data-act="openReport" data-team="${t}">Open club report</button></div><div class="small muted">Attendance, members, balances, spend and event results — with CSV export and printable statements.</div></section>
+  <section class="card stack"><div class="sec-head"><h3>Activity log</h3><button class="btn sm" data-act="openAudit">Open</button></div><div class="small muted">${S.audit.length} entr${S.audit.length===1?"y":"ies"} for ${esc(teamName(t))}.</div></section>
+  ${me()?accountCard(false):""}`;
 }
 
 /* ---- Push notifications (FCM) ---- */
@@ -1925,7 +2002,7 @@ document.addEventListener("click", e => {
       await store.update("matches", id, patch); const mm=byId(S.matches,id); audit("score", `${pairLabel(byId(S.pairs,mm?.pairA))} vs ${pairLabel(byId(S.pairs,mm?.pairB))}: ${games.map(g=>g.join(":")).join(", ")}${patch.walkover?" w/o":""}`, {team:null, eventId:S.eventId}); closeSheet(); toast(r.done?"Final score saved":"Score saved"); }),
     delMatch: ()=> confirmSheet("Delete match", "Delete this match from the schedule?", "Delete", ()=>guard(()=>store.remove("matches", id))),
     addExpense: ()=> sheetExpense(null),
-    expense: ()=> isAdmin() ? sheetExpense(id) : null,
+    expense: ()=> canManageEvent(S.ev) ? sheetExpense(id) : null,
     saveExpense: ()=> guard(async ()=>{
       const f=$("#expForm"); if(!f.reportValidity()) return;
       const amt=Math.round(parseFloat($("#eAmount").value.replace(",","."))*100); if(!(amt>=0)) { toast("Enter a valid amount"); return; }
@@ -1935,19 +2012,25 @@ document.addEventListener("click", e => {
     delExpense: ()=> confirmSheet("Delete expense", "Delete this expense?", "Delete", ()=>guard(async()=>{ const ex=byId(S.expenses,id); await store.remove("expenses", id); audit("delExpense", `${ex?.title||"cost"} ${money(ex?.amount||0)}`, {team:ex?.team||null}); closeSheet(); })),
     editEvent: sheetEvent,
     saveEvent: ()=> guard(async ()=>{
-      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:$("#evTeamA").value.trim()||"Team A", shortA:$("#evShortA").value.trim()||"A", teamB:$("#evTeamB").value.trim()||"Team B", shortB:$("#evShortB").value.trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, format:$("#evFormat").value, matchesPerPlayer:+$("#evMpp").value||3, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:$("#evCur").value||"€", registrationOpen:$("#evReg").checked, allowPlayerScores:$("#evScores").checked, houseRules:$("#evRules").value.trim(), type:$("#evType").value, description:$("#evDesc").value.trim(), appName:$("#evApp").value.trim()||"Badminton"};
-      const clubs=[...document.querySelectorAll(".evClub:checked")].map(c=>c.value); if(!clubs.length){ toast("Pick at least one club"); return; }
-      await store.update("settings","event", pick(data,GLOBAL_KEYS));
-      const evPatch={...pick(data,EVENT_KEYS), clubs, updatedAt:Date.now()}; if(S._evLogo!==undefined) evPatch.logo=S._evLogo;
+      if(!canManageEvent(S.ev)){ toast("Only the organiser can edit this event"); return; }
+      const v=(sel,def)=>{ const el=$(sel); return el ? el.value : def; };
+      const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), teamA:v("#evTeamA",S.event.teamA).trim()||"Team A", shortA:v("#evShortA",S.event.shortA).trim()||"A", teamB:v("#evTeamB",S.event.teamB).trim()||"Team B", shortB:v("#evShortB",S.event.shortB).trim()||"B", courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, format:$("#evFormat").value, matchesPerPlayer:+$("#evMpp").value||3, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:v("#evCur",S.event.currency)||"€", registrationOpen:$("#evReg")?$("#evReg").checked:S.event.registrationOpen, allowPlayerScores:$("#evScores")?$("#evScores").checked:S.event.allowPlayerScores, houseRules:$("#evRules").value.trim(), type:$("#evType").value, description:$("#evDesc").value.trim(), appName:v("#evApp",S.event.appName).trim()||"Badminton"};
+      const clubs=isAdmin()?[...document.querySelectorAll(".evClub:checked")].map(c=>c.value):evClubs(S.ev); if(!clubs.length){ toast("Pick at least one club"); return; }
+      if(isAdmin()) await store.update("settings","event", pick(data,GLOBAL_KEYS));
+      const evPatch={...pick(data,EVENT_KEYS), clubs, regOpen:$("#evRegOpen")?$("#evRegOpen").checked:true, updatedAt:Date.now()}; if(S._evLogo!==undefined) evPatch.logo=S._evLogo;
       await store.update("events", S.eventId, evPatch);
       audit("event", `${data.name} edited`, {team:null, eventId:S.eventId}); closeSheet(); toast("Event saved"); }),
     newEvent: ()=> sheetNewEvent(),
     saveNewEvent: ()=> guard(async ()=>{ const f=$("#neForm"); if(!f.reportValidity()) return;
       const data={name:$("#neName").value.trim(), type:$("#neType").value, date:$("#neDate").value, time:$("#neTime").value, venue:$("#neVenue").value.trim(), description:$("#neDesc").value.trim(), courts:+$("#neCourts").value||1, format:$("#neFormat").value, legs:1, matchesPerPlayer:+$("#neMpp").value||3, bestOf:+$("#neBestOf").value||3, pointsTo:21, houseRules:"", createdAt:Date.now(), createdBy:uid||null};
-      const clubs=[...document.querySelectorAll(".neClub:checked")].map(c=>c.value); if(!clubs.length){ toast("Pick at least one club"); return; } data.clubs=clubs; if(S._evLogo) data.logo=S._evLogo;
+      const clubs=isAdmin()?[...document.querySelectorAll(".neClub:checked")].map(c=>c.value):[myTeam()]; if(!clubs.length){ toast("Pick at least one club"); return; } data.clubs=clubs; data.regOpen=true; if(S._evLogo) data.logo=S._evLogo;
       const id = (data.date+"-"+data.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")).slice(0,60) + "-" + rnd().slice(0,3);
       await store.set("events", id, data); audit("event", `${data.name} created (${fmtDate(data.date)})`, {team:null, eventId:id}); closeSheet(); toast("Event created"); selectEvent(id); }),
     selectEvent: ()=> selectEvent(id),
+    joinEvent: ()=> guard(async ()=>{ if(!signupOpen(S.ev)){ toast("Sign-up is closed"); return; } await joinEvent(uid, S.eventId); toast("You're in"); }),
+    leaveEvent: ()=> confirmSheet("Leave event", `Leave <b>${esc(S.ev.name)}</b>? If pairs or a schedule already include you, tell the organiser.`, "Leave", ()=>guard(async ()=>{ await leaveEvent(uid, S.eventId); })),
+    joinFor: ()=> guard(async ()=>{ const p=byId(S.players,id); if(!p || !(canManageEvent(S.ev)||isClubAdmin(p.team))) return; await joinEvent(id, S.eventId, uid); toast(`${p.first} added`); }),
+    unjoin: ()=> guard(async ()=>{ const p=byId(S.players,id); if(!p || !(canManageEvent(S.ev)||isClubAdmin(p.team))) return; await leaveEvent(id, S.eventId); toast(`${p.first} removed`); }),
     openEvent: ()=>{ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recomputeEvent(); window.refreshScopedSubs?.(); S.tab="event"; render(); },
     delEvent: ()=> confirmSheet("Delete event", `Delete <b>${esc(S.ev.name)}</b> with its pairs, schedule and challenge-day costs?`, "Delete event", ()=>guard(async ()=>{
       for(const m of S.matches) await store.remove("matches", m.id); for(const p of S.pairs) await store.remove("pairs", p.id);
@@ -1956,11 +2039,11 @@ document.addEventListener("click", e => {
     pick: ()=>{ const p=byId(S.players,id); let pk=(S.pick||[]).filter(x=>byId(S.players,x)?.team===p.team); if(pk.includes(id)) pk=pk.filter(x=>x!==id); else pk.push(id); S.pick=pk.slice(-2); render(); },
     makePair: ()=> guard(async ()=>{ const ps=(S.pick||[]).map(x=>byId(S.players,x)).filter(Boolean); if(ps.length!==2) return; await store.set("pairs", store.newId(), {eventId:S.eventId, team:ps[0].team, players:ps.map(p=>p.id), order:S.pairs.filter(p=>p.team===ps[0].team).length, createdAt:Date.now()}); S.pick=[]; toast("Pair created"); }),
     delPair: ()=> guard(async ()=>{ const used=S.matches.some(m=>m.pairA===id||m.pairB===id); if(used){ confirmSheet("Pair is scheduled", "This pair has matches in the schedule. Removing it deletes those matches.", "Remove pair and matches", async ()=>{ for(const m of S.matches.filter(m=>m.pairA===id||m.pairB===id)) await store.remove("matches", m.id); await store.remove("pairs", id); }); } else await store.remove("pairs", id); }),
-    autoPair: ()=> guard(async ()=>{ const t=b.dataset.team; const free=activePlayers().filter(p=>p.team===t && !S.pairs.some(x=>(x.players||[]).includes(p.id))); const groups=autoPairs(free, b.dataset.mode).filter(g=>g.length===2); let order=S.pairs.filter(p=>p.team===t).length; for(const g of groups){ await store.set("pairs", store.newId(), {eventId:S.eventId, team:t, players:g.map(p=>p.id), order:order++, createdAt:Date.now()}); } toast(`${groups.length} pair${groups.length===1?"":"s"} made${free.length%2?" · 1 player left over":""}`); }),
+    autoPair: ()=> guard(async ()=>{ const t=b.dataset.team; const free=poolTeam(t).filter(p=>!S.pairs.some(x=>(x.players||[]).includes(p.id))); const groups=autoPairs(free, b.dataset.mode).filter(g=>g.length===2); let order=S.pairs.filter(p=>p.team===t).length; for(const g of groups){ await store.set("pairs", store.newId(), {eventId:S.eventId, team:t, players:g.map(p=>p.id), order:order++, createdAt:Date.now()}); } toast(`${groups.length} pair${groups.length===1?"":"s"} made${free.length%2?" · 1 player left over":""}`); }),
     clearPairs: ()=> confirmSheet("Clear pairs", "Remove all pairs? The schedule is cleared too.", "Clear", ()=>guard(async ()=>{ await clearEv("matches"); await clearEv("pairs"); })),
     genFixtures: ()=>{ const go = async ()=> guard(async ()=>{
         if(S.event.format==="rotation"){
-          const A=activePlayers().filter(p=>p.team==="A"), B=activePlayers().filter(p=>p.team==="B");
+          const A=poolTeam("A"), B=poolTeam("B");
           const res=buildRotation(A,B,projectFixtures().total,S.event.courts||1);
           await clearEv("matches"); await clearEv("pairs");
           const ids={}; let order=0; for(const [k,pr] of Object.entries(res.pairs)){ const id=store.newId(); ids[k]=id; await store.set("pairs", id, {...pr, eventId:S.eventId, order:order++, auto:true, createdAt:Date.now()}); }
@@ -2057,13 +2140,14 @@ async function boot(){
     const ids = (!!(t||adm)) ? allEvents().map(e=>e.id).slice(0,12) : []; const key2=JSON.stringify(ids);
     if(S._scope2!==key2){ S._scope2=key2; S.evData ||= {};
       // drop subscriptions of events no longer visible
-      Object.keys(S.evData).filter(id=>!ids.includes(id)).forEach(id=>{ ["pairs","matches","exp"].forEach(k=>{ S.scoped[k+":"+id]?.(); S.scoped[k+":"+id]=null; }); delete S.evData[id]; });
-      const mergeEv = ()=>{ S.allPairs=[].concat(...Object.values(S.evData).map(d=>d.pairs||[])); S.allMatches=[].concat(...Object.values(S.evData).map(d=>d.matches||[])); S.scopedData.eventExpenses=[].concat(...Object.values(S.evData).map(d=>d.exp||[])).filter(e=>e.scope!=="team"); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; recomputeEvent(); };
+      Object.keys(S.evData).filter(id=>!ids.includes(id)).forEach(id=>{ ["pairs","matches","exp","regs"].forEach(k=>{ S.scoped[k+":"+id]?.(); S.scoped[k+":"+id]=null; }); delete S.evData[id]; });
+      const mergeEv = ()=>{ S.allPairs=[].concat(...Object.values(S.evData).map(d=>d.pairs||[])); S.allMatches=[].concat(...Object.values(S.evData).map(d=>d.matches||[])); S.scopedData.eventExpenses=[].concat(...Object.values(S.evData).map(d=>d.exp||[])).filter(e=>e.scope!=="team"); S.expenses=[...S.scopedData.eventExpenses, ...S.scopedData.teamExpenses]; S.allRegs=[].concat(...Object.values(S.evData).map(d=>d.regs||[])); recomputeEvent(); };
       ids.forEach(id=>{ S.evData[id] ||= {};
+        if(!S.scoped["regs:"+id]) resub("regs:"+id,"eventRegs", {field:"eventId", op:"==", value:id}, rows=>{ S.evData[id].regs=rows; mergeEv(); });
         if(!S.scoped["pairs:"+id]) resub("pairs:"+id,"pairs", {field:"eventId", op:"==", value:id}, rows=>{ S.evData[id].pairs=rows; mergeEv(); });
         if(!S.scoped["matches:"+id]) resub("matches:"+id,"matches", {field:"eventId", op:"==", value:id}, rows=>{ S.evData[id].matches=rows; mergeEv(); });
         if(!S.scoped["exp:"+id]) resub("exp:"+id,"expenses", {field:"eventId", op:"==", value:id}, rows=>{ S.evData[id].exp=rows; mergeEv(); }); });
-      if(!ids.length){ S.allPairs=[]; S.allMatches=[]; S.scopedData.eventExpenses=[]; S.expenses=[...S.scopedData.teamExpenses]; recomputeEvent(); }
+      if(!ids.length){ S.allPairs=[]; S.allMatches=[]; S.allRegs=[]; S.scopedData.eventExpenses=[]; S.expenses=[...S.scopedData.teamExpenses]; recomputeEvent(); }
     }
   };
   sub("settings", rows => { const ev=rows.find(r=>r.id==="event"); S.settingsEvent = ev ? (({id,...r})=>r)(ev) : null; S.admins = rows.find(r=>r.id==="admins")||null; S.adminsLoaded=true; recomputeEvent(); });

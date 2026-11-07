@@ -208,6 +208,20 @@ have an expiry and a use count. With "Open registration" off, registration is in
   (every 20 min: `notifyPending` → push to payer, `paidNotify` → push to requester). The weekly vote reminder now fires on
   any run at or after 07:00 on the vote day (GitHub schedules are often late).
 
+## Event sign-up, club-only visibility, club admins organising club events
+
+- `eventRegs/{eventId}_{uid}` `{eventId, uid, team, at, by}`: members **Join / Leave** on the event screen ("Who's playing")
+  while `events/{id}.regOpen !== false` and the event is in the future; organisers and the club's admins add/remove people
+  any time. Pairs, rotation and the projected schedule are built from the people who joined (`evPool()`); when nobody has
+  joined, all active members count (old behaviour, with a warning in Admin).
+- **Players tab**: members and club admins see only their own club (`vPlayersClub`); other clubs' players appear on shared
+  events (who's playing, pairs, matches, grid, stats). Global admins still see both clubs.
+- **Club admins** get a **Manage** tab (`vClubAdmin`): create events for their club only (`clubs == [team]`), and for those
+  events everything an organiser does — pairs, schedule, scores, walkovers, event costs, edit/delete. Shared events stay with
+  the global admins. `canManageEvent(ev)` gates the UI; rules use `clubEventAdmin(eventId)`.
+- Rules are deployed by `.github/workflows/rules.yml` (firebase-tools with the `FIREBASE_SERVICE_ACCOUNT` secret) on every push
+  that changes `firestore.rules` — no more pasting into the console.
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered

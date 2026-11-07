@@ -27,6 +27,16 @@ service cloud.firestore {
       return isActiveMember() && exists(/databases/$(db)/documents/events/$(eventId))
         && myTeam() in get(/databases/$(db)/documents/events/$(eventId)).data.clubs;
     }
+    // A club admin organises an event that belongs to their club alone.
+    function evDoc(eventId) { return /databases/$(db)/documents/events/$(eventId); }
+    function clubEventAdmin(eventId) {
+      return exists(evDoc(eventId)) && get(evDoc(eventId)).data.clubs.size() == 1
+        && isClubAdmin(get(evDoc(eventId)).data.clubs[0]);
+    }
+    function organises(eventId) { return isAdmin() || clubEventAdmin(eventId); }
+    function signupOpen(eventId) {
+      return exists(evDoc(eventId)) && (!("regOpen" in get(evDoc(eventId)).data) || get(evDoc(eventId)).data.regOpen != false);
+    }
     function inviteDoc(code) { return /databases/$(db)/documents/invites/$(code); }
     // A registration with an invite code is allowed when the code exists, is for that club, hasn't expired and has uses left.
     function validInvite(d) {
@@ -83,14 +93,16 @@ service cloud.firestore {
     // Pairs and schedule: readable by members of the clubs in that event (the app queries by eventId); admins write.
     match /pairs/{id} {
       allow read: if isAdmin() || canSeeEvent(resource.data.eventId);
-      allow write: if isAdmin();
+      allow create: if organises(request.resource.data.eventId);
+      allow update, delete: if organises(resource.data.eventId);
     }
 
     // Matches: admins write; registered players may enter scores if the admin switched that on.
     match /matches/{id} {
       allow read: if isAdmin() || canSeeEvent(resource.data.eventId);
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin()
+      allow create: if organises(request.resource.data.eventId);
+      allow delete: if organises(resource.data.eventId);
+      allow update: if organises(resource.data.eventId)
         || (signedIn() && playerScoresAllowed()
             && exists(/databases/$(db)/documents/players/$(request.auth.uid))
             && request.resource.data.diff(resource.data).affectedKeys()
@@ -107,15 +119,35 @@ service cloud.firestore {
                            || resource.data.to == request.auth.uid
                            || (("splitAmong" in resource.data) && request.auth.uid in resource.data.splitAmong)));
       allow create, update: if isAdmin()
+        || (request.resource.data.scope != "team" && clubEventAdmin(request.resource.data.eventId))
         || (isActiveMember() && request.resource.data.scope == "team" && request.resource.data.team == myTeam()
             && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 1000000);
-      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
+      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid)
+        || (resource.data.scope != "team" && clubEventAdmin(resource.data.eventId));
     }
 
     // Events (the challenge and any other event the admins create): everyone reads, admins write.
     match /events/{id} {
       allow read: if isAdmin() || (isActiveMember() && myTeam() in resource.data.clubs);
-      allow write: if isAdmin() && request.resource.data.clubs is list && request.resource.data.clubs.size() > 0;
+      allow create, update: if request.resource.data.clubs is list && request.resource.data.clubs.size() > 0
+        && (isAdmin() || (request.resource.data.clubs == [myTeam()] && isClubAdmin(myTeam())
+                          && (resource == null || resource.data.clubs == [myTeam()])));
+      allow delete: if isAdmin() || clubEventAdmin(id);
+    }
+
+    // Event sign-ups (doc id "<eventId>_<uid>"): members join/leave their club's events while sign-up is open;
+    // organisers and the club's admins add or remove people any time.
+    match /eventRegs/{id} {
+      allow read: if isAdmin() || canSeeEvent(resource.data.eventId);
+      allow create: if id == request.resource.data.eventId + "_" + request.resource.data.uid
+        && exists(/databases/$(db)/documents/players/$(request.resource.data.uid))
+        && request.resource.data.team == get(/databases/$(db)/documents/players/$(request.resource.data.uid)).data.team
+        && ((request.resource.data.uid == request.auth.uid && isActiveMember() && canSeeEvent(request.resource.data.eventId) && signupOpen(request.resource.data.eventId))
+            || organises(request.resource.data.eventId)
+            || (isClubAdmin(request.resource.data.team) && canSeeEvent(request.resource.data.eventId)));
+      allow update: if false;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid && signupOpen(resource.data.eventId))
+        || clubEventAdmin(resource.data.eventId) || isClubAdmin(resource.data.team);
     }
 
     // Team settings (regular session day/time/place): admins or that team's members.
