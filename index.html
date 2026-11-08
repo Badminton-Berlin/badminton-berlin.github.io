@@ -211,7 +211,7 @@ label.f textarea{min-height:70px;resize:vertical}
 .demo .check input{width:16px;height:16px}
 code.uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--surface-2);padding:3px 6px;border-radius:6px;overflow-wrap:anywhere}
 .lead{font-size:15px;color:var(--muted);max-width:60ch}
-.map{height:170px;border-radius:12px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
+.map{height:170px;border-radius:12px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line);position:relative;z-index:0;isolation:isolate}
 .map:empty{display:none}
 a.lnk{color:var(--accent);font-weight:600;text-decoration:none}
 </style>
@@ -1075,7 +1075,7 @@ function teamMoney(t){
 
 /* ---- Sessions tab ---- */
 function vSessions(){
-  setTimeout(()=>{ ["A","B"].forEach(x=>{ const c=teamCfg(x); if(c.lat!=null && document.getElementById("teamMap"+x)) showMap("teamMap"+x, c.lat, c.lon); }); }, 50);
+  setTimeout(()=>{ ["A","B"].forEach(x=>{ const c=teamCfg(x); if(realPin(c) && document.getElementById("teamMap"+x)) showMap("teamMap"+x, c.lat, c.lon); }); }, 50);
   if(!isAdmin() && !myTeam()) return `<div class="empty"><b>Register first</b>Sessions, votes and costs belong to your club. Register to see yours.</div>${isDemo||!me()?`<button class="btn primary block" data-act="register">Register</button>`:""}`;
   const t = isAdmin() ? (S.filterS || myTeam() || "A") : myTeam(); const cfg=teamCfg(t); const member=canManageTeam(t);
   const today=localISO(new Date());
@@ -1090,7 +1090,7 @@ function vSessions(){
   ${isAdmin()?`<div class="seg" data-seg="filterS"><button class="A" aria-pressed="${t==="A"}" data-val="A">${esc(S.event.teamA)}</button><button class="B" aria-pressed="${t==="B"}" data-val="B">${esc(S.event.teamB)}</button></div>`:""}
   <section class="card stack">
     <div class="sec-head"><h3>${esc(teamName(t))} · regular session</h3>${canEditTeam(t)?`<button class="btn sm" data-act="editTeamCfg" data-team="${t}">Edit</button>`:""}</div>
-    ${cfg.enabled ? `<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br>${placeLine(cfg)||'<span class="muted">Location not set</span>'}${cfg.note?`<br><span class="small muted">${esc(cfg.note)}</span>`:""}</div>${cfg.lat!=null?`<div class="map" id="teamMap${t}"></div>`:""}
+    ${cfg.enabled ? `<div><b>${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)}</b><br>${placeLine(cfg)||'<span class="muted">Location not set</span>'}${cfg.note?`<br><span class="small muted">${esc(cfg.note)}</span>`:""}</div>${realPin(cfg)?`<div class="map" id="teamMap${t}"></div>`:""}
       ${cfg.rules?`<div class="small" style="white-space:pre-wrap">${esc(cfg.rules)}</div>`:""}
       <div class="small muted">Vote reminder: ${WEEKDAYS[cfg.voteDay??5]} morning. The next session is created automatically.</div>`
       : `<div class="small muted">${member?"Set when and where "+esc(teamName(t))+" plays each week. The app then creates each session, collects votes and tracks the cost.":esc(teamName(t))+" hasn't set a regular session yet."}</div>`}
@@ -1109,7 +1109,7 @@ function sessionCard(s, full){
   const cost=S.expenses.filter(e=>e.sessionId===s.id&&e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0);
   const canVote = member && me();
   return `<section class="card stack" data-session="${s.id}">
-    <div class="sec-head"><div><b style="font-family:var(--f-display);font-size:20px">${esc(fmtDay(s.date))}</b><br><span class="muted small">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</span>${(s.address||s.location)?` <a class="lnk small" href="${mapsLink(s.lat,s.lon,[s.location,s.address].filter(Boolean).join(", "))}" target="_blank" rel="noopener">Directions ↗</a>`:""}</div><span class="pill ${t}">${esc(teamShort(t))}</span></div>
+    <div class="sec-head"><div><b style="font-family:var(--f-display);font-size:20px">${esc(fmtDay(s.date))}</b><br><span class="muted small">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</span>${(s.address||s.location)?` <a class="lnk small" href="${mapsLink(s.lat,s.lon,s.address||s.location)}" target="_blank" rel="noopener">Directions ↗</a>`:""}</div><span class="pill ${t}">${esc(teamShort(t))}</span></div>
     ${s.note?`<div class="small">${esc(s.note)}</div>`:""}
     ${canVote && (votesOpen(s)||canManage(t))?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${mine==="yes"}" data-val="yes">Yes (${rsvpCount(s,"yes")})</button><button aria-pressed="${mine==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${mine==="no"}" data-val="no">No (${rsvpCount(s,"no")})</button></div>`
       :`<div class="row small muted"><span>Yes ${rsvpCount(s,"yes")}</span><span>Maybe ${rsvpCount(s,"maybe")}</span><span>No ${rsvpCount(s,"no")}</span></div>`}
@@ -1131,7 +1131,7 @@ function sheetSession(id){
   </div>`, member?`<button class="btn" data-act="attendance" data-id="${id}">Who played</button><button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
 }
 function sheetTeamCfg(t){
-  const c=teamCfg(t); S._geo = c.lat!=null ? {lat:c.lat, lon:c.lon} : null; S._feeMode=c.feeMode||"split";
+  const c=teamCfg(t); S._geo = realPin(c) ? {lat:c.lat, lon:c.lon} : null; S._feeMode=c.feeMode||"split";
   openSheet(`${teamName(t)} · regular session`, `<form id="cfgForm" class="stack">
     <label class="check"><input type="checkbox" id="cEnabled" ${c.enabled?"checked":""}> We play every week</label>
     <div class="row"><label class="f grow">Day<select id="cDay">${WEEKDAYS.map((d,i)=>`<option value="${i}" ${+c.weekday===i?"selected":""}>${d}</option>`).join("")}</select></label></div>
@@ -1155,7 +1155,7 @@ function sheetTeamCfg(t){
 function sheetEditSession(id, team){
   const cfg0 = team ? teamCfg(team) : null;
   const s = id ? byId(S.sessions,id) : {team, date:nextSessionDate(cfg0), start:cfg0.start, end:cfg0.end, location:cfg0.location||"", address:cfg0.address||"", lat:cfg0.lat??null, lon:cfg0.lon??null, note:"", status:"open"};
-  if(!s) return; S._geoS = s.lat!=null ? {lat:s.lat, lon:s.lon} : null;
+  if(!s) return; S._geoS = realPin(s) ? {lat:s.lat, lon:s.lon} : null;
   openSheet(id?"Edit session":"Add session", `<form id="sessForm" class="stack">
     <label class="f">Date<input type="date" id="sDate" value="${esc(s.date)}" required></label>
     <div class="row"><label class="f grow">From<input type="time" id="sStart" value="${esc(s.start)}"></label><label class="f grow">To<input type="time" id="sEnd" value="${esc(s.end)}"></label></div>
@@ -1167,7 +1167,7 @@ function sheetEditSession(id, team){
     <label class="f">Note<textarea id="sNote">${esc(s.note||"")}</textarea></label>
     ${id?`<label class="check"><input type="checkbox" id="sCancel" ${s.status==="cancelled"?"checked":""}> Cancelled (no session this week)</label>`:""}
   </form>`, `<button class="btn primary" data-act="saveSession" data-id="${id||""}" data-team="${s.team}">Save</button>${id&&isAdmin()?`<button class="btn danger" data-act="delSession" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
-  if(s.lat!=null) setTimeout(()=>showMap("sessMap", s.lat, s.lon, {interactive:true, onMove:(la,lo)=>{ S._geoS={lat:la, lon:lo}; }}), 50);
+  if(realPin(s)) setTimeout(()=>showMap("sessMap", s.lat, s.lon, {interactive:true, onMove:(la,lo)=>{ S._geoS={lat:la, lon:lo}; }}), 50);
 }
 function sheetAttendance(id){
   const s=byId(S.sessions,id); if(!s) return;
@@ -1221,9 +1221,13 @@ function vTeamMoney(t){
 }
 
 /* ---- Maps: address search (OpenStreetMap/Nominatim) + Leaflet preview + directions link ---- */
+async function nominatim(params){ const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=de&"+params, {headers:{"Accept":"application/json"}}); const j=await r.json(); return j.length ? {lat:+j[0].lat, lon:+j[0].lon, label:j[0].display_name} : null; }
+// Exact address first; then the street without house number; then the postcode area (approximate — the organiser drags the pin).
 async function geocode(q){
-  const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q), {headers:{"Accept":"application/json"}});
-  const j=await r.json(); if(!j.length) throw new Error("Address not found"); return {lat:+j[0].lat, lon:+j[0].lon, label:j[0].display_name};
+  const exact=await nominatim("q="+encodeURIComponent(q)); if(exact) return exact;
+  const noNo=q.replace(/\s+\d+[a-zA-Z]?\s*(,|$)/, "$1"); if(noNo!==q){ const r=await nominatim("q="+encodeURIComponent(noNo)); if(r) return {...r, approx:true}; }
+  const pc=(q.match(/\b(\d{5})\b/)||[])[1]; if(pc){ const r=await nominatim("postalcode="+pc); if(r) return {...r, approx:true, label:`Postcode area ${pc} — street unknown to the map`}; }
+  throw new Error("Address not found");
 }
 let leafletP=null;
 function loadLeaflet(){ if(window.L) return Promise.resolve(); return leafletP ||= new Promise((res,rej)=>{ const l=document.createElement("link"); l.rel="stylesheet"; l.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(l); const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); }); }
@@ -1239,17 +1243,20 @@ async function showMap(elId, lat, lon, opts={}){
     el._map=map; setTimeout(()=>map.invalidateSize(),250);
   }catch(e){ console.warn("map", e); }
 }
-const mapsLink=(lat,lon,q)=> (lat!=null&&lon!=null) ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q||"")}`;
-const placeLine=(o)=> (o.location||o.address) ? `<span class="muted small">${esc(o.location||"")}${o.address?(o.location?" · ":"")+esc(o.address):""}</span> <a class="lnk small" href="${mapsLink(o.lat,o.lon,[o.location,o.address].filter(Boolean).join(", "))}" target="_blank" rel="noopener">Directions ↗</a>` : "";
+const FALLBACK_PIN={lat:52.52, lon:13.405}; // where the map opens when an address is unknown — never a real destination
+const isFallbackPin=(lat,lon)=> lat!=null && lon!=null && Math.abs(lat-FALLBACK_PIN.lat)<1e-6 && Math.abs(lon-FALLBACK_PIN.lon)<1e-6;
+const realPin=(o)=> o && o.lat!=null && o.lon!=null && !isFallbackPin(o.lat,o.lon);
+const mapsLink=(lat,lon,q)=> (q && q.trim()) ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q.trim())}` : (lat!=null&&lon!=null&&!isFallbackPin(lat,lon)) ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q||"")}`;
+const placeLine=(o)=> (o.location||o.address) ? `<span class="muted small">${esc(o.location||"")}${o.address?(o.location?" · ":"")+esc(o.address):""}</span> <a class="lnk small" href="${mapsLink(o.lat,o.lon,o.address||o.location)}" target="_blank" rel="noopener">Directions ↗</a>` : "";
 async function geoLookup(inputId, mapId, holder){
   const q=$("#"+inputId)?.value.trim(); if(!q){ toast("Type an address first"); return; }
   toast("Searching…");
-  const lbl=$("#"+mapId+"Label"); const onMove=(la,lo)=>{ S[holder]={lat:la, lon:lo}; };
+  const lbl=$("#"+mapId+"Label"); const onMove=(la,lo)=>{ S[holder]={lat:la, lon:lo}; if(lbl) lbl.textContent="Pin set — directions use the address you typed; the map shows this pin."; };
   try{ let g; try{ g=await geocode(q); }catch(e){ if(e.message!=="Address not found" || /berlin/i.test(q)) throw e; g=await geocode(q+", Berlin"); }
-    S[holder]={lat:g.lat, lon:g.lon}; if(lbl) lbl.textContent=g.label; await showMap(mapId, g.lat, g.lon, {interactive:true, onMove}); toast("Found — drag the pin to adjust"); }
+    S[holder]=g.approx?{lat:g.lat, lon:g.lon, draft:true}:{lat:g.lat, lon:g.lon}; if(lbl) lbl.textContent=g.approx?`Approximate: ${g.label}. Tap or drag the pin onto the hall — directions use the address you typed.`:g.label; await showMap(mapId, g.lat, g.lon, {interactive:true, onMove, zoom:g.approx?13:15}); toast(g.approx?"Street not on the map — drag the pin to the hall":"Found — drag the pin to adjust"); }
   catch(e){
     if(e.message==="Address not found"){ // unknown to OpenStreetMap: open the map on Berlin and let the organiser place the pin by hand
-      const cur=S[holder]; const la=cur?cur.lat:52.52, lo=cur?cur.lon:13.405; S[holder]={lat:la, lon:lo}; if(lbl) lbl.textContent="Address not on the map — drag the pin onto the hall (zoom in with two fingers)";
+      const cur=realPin(S[holder])?S[holder]:null; const la=cur?cur.lat:FALLBACK_PIN.lat, lo=cur?cur.lon:FALLBACK_PIN.lon; S[holder]=cur?{lat:la, lon:lo}:{lat:la, lon:lo, draft:true}; if(lbl) lbl.textContent="Address not on the map — tap or drag the pin onto the hall (zoom with two fingers). Directions will use the address you typed.";
       try{ await showMap(mapId, la, lo, {interactive:true, onMove, zoom:cur?15:11}); }catch(_){} toast("Not found on the map — drag the pin to the hall"); }
     else toast("Map search isn't available right now"); }
 }
@@ -1949,12 +1956,12 @@ document.addEventListener("click", e => {
     useInviteCode: ()=> guard(async ()=>{ const code=($("#inviteCodeInput").value||"").trim().toUpperCase(); if(!code){ toast("Enter the code"); return; } lsSet("ppc_invite", code); await loadPendingInvite(); if(S.pendingInvite && !S.pendingInvite.missing && inviteValid(S.pendingInvite)) sheetProfile(null); else toast("That code isn't valid"); }),
     makeMember: ()=> guard(async ()=>{ await store.update("players", id, {guest:false, sessionOnly:null, updatedAt:Date.now()}); audit("member", `${fullName(byId(S.players,id))} made a full member`, {team:byId(S.players,id)?.team}); toast("Now a full member"); sheetPlayer(id); }),
     editTeamCfg: ()=> sheetTeamCfg(b.dataset.team),
-    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, lockDay:$("#cLockDay").value===""?null:+$("#cLockDay").value, lockTime:$("#cLockTime").value||"14:00", note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:S._geo?S._geo.lat:null, lon:S._geo?S._geo.lon:null, feeMode:S._feeMode||teamCfg(t).feeMode||"split", feeAmount:Math.round(parseFloat(($("#cFee").value||"0").replace(",","."))*100)||0, feeFrom:$("#cFeeFrom").value||monthKey(todayISO()), treasurer:$("#cTreasurer").value||null, updatedAt:Date.now(), updatedBy:uid||null}); audit("team", `${teamShort(t)} setup saved (${(S._feeMode||teamCfg(t).feeMode)==="monthly"?"monthly fee":"split per session"})`, {team:t}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
+    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, lockDay:$("#cLockDay").value===""?null:+$("#cLockDay").value, lockTime:$("#cLockTime").value||"14:00", note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:realPin(S._geo)&&!S._geo.draft?S._geo.lat:null, lon:realPin(S._geo)&&!S._geo.draft?S._geo.lon:null, feeMode:S._feeMode||teamCfg(t).feeMode||"split", feeAmount:Math.round(parseFloat(($("#cFee").value||"0").replace(",","."))*100)||0, feeFrom:$("#cFeeFrom").value||monthKey(todayISO()), treasurer:$("#cTreasurer").value||null, updatedAt:Date.now(), updatedBy:uid||null}); audit("team", `${teamShort(t)} setup saved (${(S._feeMode||teamCfg(t).feeMode)==="monthly"?"monthly fee":"split per session"})`, {team:t}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
     addSession: ()=> sheetEditSession(null, b.dataset.team),
     editSession: ()=> sheetEditSession(id),
     session: ()=> sheetSession(id),
     saveSession: ()=> guard(async ()=>{ const f=$("#sessForm"); if(!f.reportValidity()) return; const t=b.dataset.team; const date=$("#sDate").value;
-      const data={team:t, date, start:$("#sStart").value||"08:30", end:$("#sEnd").value||"09:30", location:$("#sLoc").value.trim(), address:$("#sAddr").value.trim(), lat:S._geoS?S._geoS.lat:null, lon:S._geoS?S._geoS.lon:null, note:$("#sNote").value.trim(), lockAt:$("#sLock").value?new Date($("#sLock").value).getTime():null, updatedAt:Date.now()};
+      const data={team:t, date, start:$("#sStart").value||"08:30", end:$("#sEnd").value||"09:30", location:$("#sLoc").value.trim(), address:$("#sAddr").value.trim(), lat:realPin(S._geoS)&&!S._geoS.draft?S._geoS.lat:null, lon:realPin(S._geoS)&&!S._geoS.draft?S._geoS.lon:null, note:$("#sNote").value.trim(), lockAt:$("#sLock").value?new Date($("#sLock").value).getTime():null, updatedAt:Date.now()};
       if(id){ data.status=$("#sCancel")?.checked?"cancelled":"open"; await store.update("sessions", id, data); }
       else { let nid=`${t}_${date}`; if(byId(S.sessions,nid)) nid+="_"+rnd().slice(0,4); await store.set("sessions", nid, {...data, rsvps:{}, attended:null, status:"open", auto:false, createdAt:Date.now(), createdBy:uid||null}); }
       closeSheet(); toast("Session saved"); }),
