@@ -286,7 +286,7 @@ const eventLogo = ev => safeImg(ev?.logo) || (ev?.id==="main" && ev?.logo!=="" ?
 const DOCS_BASE = (isDemoHost => isDemoHost ? "https://badminton-berlin.github.io/docs/" : location.origin + location.pathname.replace(/[^/]*$/,"") + "docs/")(location.protocol==="file:" || /claude\.ai|claudeusercontent/.test(location.host));
 const CREDIT = `<div class="tiny muted" style="text-align:center;padding:14px 0 6px;letter-spacing:.04em">Developed by HM</div>`;
 function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-function allEvents(){ if(S.events.length) return S.events; if(!isAdmin() && (!isDemo || (myTeam() && !["A","B"].includes(myTeam())))) return []; return [{id:"main", type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT,EVENT_KEYS), ...pick(S.settingsEvent||{},EVENT_KEYS), virtual:true}]; }
+function allEvents(){ if(!isAdmin() && me()?.sessionOnly) return []; /* one-session guests see only their session */ if(S.events.length) return S.events; if(!isAdmin() && (!isDemo || (myTeam() && !["A","B"].includes(myTeam())))) return []; return [{id:"main", type:"challenge", clubs:["A","B"], ...pick(DEFAULT_EVENT,EVENT_KEYS), ...pick(S.settingsEvent||{},EVENT_KEYS), virtual:true}]; }
 const evClubs = ev => Array.isArray(ev?.clubs) && ev.clubs.length ? ev.clubs : ["A","B"];
 const inEv = x => (x.eventId||"main")===S.eventId;
 function recomputeEvent(){
@@ -593,8 +593,8 @@ function vHome(){
   // next team session with vote
   let sessionCard="";
   if(m){ const s=S.sessions.filter(x=>x.team===m.team && sessionOpen(x) && x.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date))[0];
-    if(s){ const v=(s.rsvps||{})[uid]; const yes=Object.entries(s.rsvps||{}).filter(([,x])=>x==="yes").map(([k])=>byId(S.players,k)).filter(Boolean);
-      sessionCard=`<section class="card stack" style="border-color:var(--accent)"><div class="sec-head"><h3>${esc(teamShort(m.team))} plays ${esc(fmtDay(s.date))}</h3><button class="btn ghost sm" data-act="tab" data-tab="sessions">Details</button></div><div class="small muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</div>${isAway(m,s.date)?`<div class="tiny" style="color:var(--warn)">You're away on this date — counted as Can't. Tap “I'm in” if you can make it after all.</div>`:""}${votesOpen(s)||canManage(m.team)?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${v==="yes"}" data-val="yes">I'm in (${rsvpCount(s,"yes")})</button><button aria-pressed="${v==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${v==="no"}" data-val="no">Can't (${rsvpCount(s,"no")})</button></div>`:`<div class="small" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))} · ${v?`you voted “${v}”`:"you didn't vote"} · yes ${rsvpCount(s,"yes")}</div>`}${voteDeadline(s)&&votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:""}${yes.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}</span></div>`:""}</section>`; }
+    if(s){ const v=effVote(s); const yes=Object.entries(effRsvps(s)).filter(([,x])=>x==="yes").map(([k])=>byId(S.players,k)).filter(Boolean); const optout=attendMode(m.team)==="optout";
+      sessionCard=`<section class="card stack" style="border-color:var(--accent)"><div class="sec-head"><h3>${esc(teamShort(m.team))} plays ${esc(fmtDay(s.date))}</h3><button class="btn ghost sm" data-act="tab" data-tab="sessions">Details</button></div><div class="small muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</div>${isAway(m,s.date)?`<div class="tiny" style="color:var(--warn)">You're away on this date — counted as Can't. Tap “I'm in” if you can make it after all.</div>`:optout&&!(s.rsvps||{})[uid]?`<div class="tiny" style="color:var(--muted)">You're in by default — tap <b>Can't</b>${voteDeadline(s)?` by ${esc(fmtDL(voteDeadline(s)))}`:""} if you can't make it.</div>`:""}${votesOpen(s)||canManage(m.team)?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${v==="yes"}" data-val="yes">I'm in (${rsvpCount(s,"yes")})</button><button aria-pressed="${v==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${v==="no"}" data-val="no">Can't (${rsvpCount(s,"no")})</button></div>`:`<div class="small" style="color:var(--bad)">${optout?"Opt-out":"Votes"} closed ${esc(fmtDL(voteDeadline(s)))} · ${v==="yes"?"you're in":v==="maybe"?"you said maybe":v==="no"?"you can't":"you didn't vote"} · ${rsvpCount(s,"yes")} playing</div>`}${voteDeadline(s)&&votesOpen(s)&&!optout?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:""}${yes.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}</span></div>`:""}</section>`; }
     else { const cfg=teamCfg(m.team); sessionCard = cfg.enabled ? "" : `<section class="card stack"><h3>Your team</h3><div class="small muted">${esc(teamName(m.team))} hasn't set a regular session yet.</div><button class="btn sm" data-act="editTeamCfg" data-team="${m.team}">Set it up</button></section>`; } }
   // upcoming matches across events (mine first)
   const evOf = x => allEvents().find(e=>e.id===(x.eventId||"main"));
@@ -603,7 +603,7 @@ function vHome(){
   const mineFirst = [...upcoming.filter(x=>myIds.includes(x.pairA)||myIds.includes(x.pairB)), ...upcoming.filter(x=>!(myIds.includes(x.pairA)||myIds.includes(x.pairB)))].slice(0,3);
   // upcoming club sessions (with my vote) are listed too — the schedule of an event only exists once the organiser generates it
   const upSessions = m ? S.sessions.filter(x=>x.team===m.team && sessionOpen(x) && x.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3) : [];
-  const sessRow = x=>{ const v=(x.rsvps||{})[uid]; const n=rsvpCount(x,"yes"); return `<button class="item" data-act="session" data-id="${x.id}"><div class="t"><b>${esc(fmtDay(x.date))} · ${esc(x.start)}–${esc(x.end)}</b><span>${esc(teamShort(m.team))} session · ${esc(x.location||"location tbc")} · ${n} coming</span></div><span class="pill ${v==="yes"?"good":v==="no"?"warn":""}" style="flex:none">${v==="yes"?"you're in":v==="maybe"?"maybe":v==="no"?"can't":"not voted"}</span></button>`; };
+  const sessRow = x=>{ const v=effVote(x); const n=rsvpCount(x,"yes"); return `<button class="item" data-act="session" data-id="${x.id}"><div class="t"><b>${esc(fmtDay(x.date))} · ${esc(x.start)}–${esc(x.end)}</b><span>${esc(teamShort(m.team))} session · ${esc(x.location||"location tbc")} · ${n} coming</span></div><span class="pill ${v==="yes"?"good":v==="no"?"warn":""}" style="flex:none">${v==="yes"?"you're in":v==="maybe"?"maybe":v==="no"?"can't":"not voted"}</span></button>`; };
   const matchesCard = `<section class="stack"><div class="sec-head"><h3>Upcoming</h3><button class="btn ghost sm" data-act="tab" data-tab="${mineFirst.length?"matches":"sessions"}">All</button></div>
     ${upSessions.length?`<div class="list">${upSessions.map(sessRow).join("")}</div>`:""}
     ${mineFirst.length ? mineFirst.map(x=>`<div class="tiny muted" style="margin:-4px 0 -6px 4px">${esc(evOf(x)?.name||"")} · ${esc(fmtDate(evOf(x)?.date))}</div>`+matchCard(x)).join("") : upSessions.length ? `<div class="tiny muted">Event matches appear here once the organiser generates the schedule.</div>` : `<div class="empty"><b>Nothing scheduled yet</b>${S.allMatches.length?"Everything has been played.":m?"Your club's next session and event matches appear here.":"The schedule appears here once the organiser generates it."}</div>`}</section>`;
@@ -950,7 +950,8 @@ function sheetEvent(){
     <label class="f">Matches per player (rotation format)<input type="number" id="evMpp" min="1" max="12" value="${e.matchesPerPlayer||3}"><span class="help">Target. The app picks the nearest schedule size where every player of a team plays exactly the same number of matches.</span></label>
     <div class="row"><label class="f grow">Courts<input type="number" id="evCourts" min="1" max="12" value="${e.courts}"></label><label class="f grow">Legs (fixed pairs)<select id="evLegs"><option value="1" ${e.legs==1?"selected":""}>1 (play each pair once)</option><option value="2" ${e.legs==2?"selected":""}>2 (home & away)</option></select></label></div>
     <div class="row"><label class="f grow">Best of<select id="evBestOf"><option value="1" ${e.bestOf==1?"selected":""}>1 game</option><option value="3" ${e.bestOf==3?"selected":""}>3 games</option><option value="5" ${e.bestOf==5?"selected":""}>5 games</option></select></label><label class="f grow">Points per game<select id="evPts"><option value="21" ${e.pointsTo==21?"selected":""}>21 (cap 30)</option><option value="15" ${e.pointsTo==15?"selected":""}>15 (cap 24)</option><option value="11" ${e.pointsTo==11?"selected":""}>11 (cap 20)</option></select></label></div>
-    <label class="check"><input type="checkbox" id="evRegOpen" ${S.ev.regOpen!==false?"checked":""}> Members can sign up / leave themselves <span class="help">(closes automatically on the event day; organisers can always add people)</span></label>
+    <label class="f">Participation<select id="evAttend"><option value="join" ${evAttendMode(S.ev)!=="all"?"selected":""}>Sign-up — members tap “Join”, nobody is in by default</option><option value="all" ${evAttendMode(S.ev)==="all"?"selected":""}>Everyone in by default — members tap “Can't make it” to opt out</option></select></label>
+    <label class="check"><input type="checkbox" id="evRegOpen" ${S.ev.regOpen!==false?"checked":""}> Members can sign up / opt out themselves <span class="help">(closes automatically on the event day; organisers can always add people)</span></label>
     ${isAdmin()?`<label class="f">App name (header)<input id="evApp" maxlength="30" value="${esc(e.appName||"Badminton Berlin")}"></label>
     <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">Clubs taking part in this event</span>${CLUBS().map(c=>`<label class="check"><input type="checkbox" class="evClub" value="${c.id}" ${evClubs(S.ev).includes(c.id)?"checked":""}> ${esc(c.name)}</label>`).join("")}<span class="help">One club (internal event, organised by its club admins) or two clubs (team against team). Members only see events their club takes part in.</span></div>
     <label class="f">Currency<input id="evCur" maxlength="3" value="${esc(e.currency||"€")}"></label>`:""}
@@ -971,6 +972,7 @@ function sheetNewEvent(){
     <label class="f">Description<textarea id="neDesc" placeholder="Open to both teams, bring a partner…"></textarea></label>
     <div class="row"><label class="f grow">Match format<select id="neFormat"><option value="fixed">Fixed pairs</option><option value="rotation">Rotation (equal matches)</option></select></label><label class="f grow">Matches per player<input type="number" id="neMpp" min="1" max="12" value="3"></label></div>
     <label class="f">Best of<select id="neBestOf"><option value="1">1 game</option><option value="3" selected>3 games</option><option value="5">5 games</option></select></label>
+    <label class="f">Participation<select id="neAttend"><option value="join">Sign-up — members tap “Join”</option><option value="all">Everyone in by default — members opt out</option></select></label>
     <p class="help" style="margin:0">Team names, scoring and other details can be changed later under Admin → Event → Edit while the event is selected.</p>
   </form>`, `<button class="btn primary" data-act="saveNewEvent">Create event</button>`);
 }
@@ -984,7 +986,7 @@ function eventsList(){
   const evs=[...allEvents()].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
   const t=todayISO(); const up=evs.filter(e=>e.date>=t), past=evs.filter(e=>e.date<t).reverse();
   const card = ev=>{ const st=eventStatus(ev); const sel=ev.id===S.eventId; const ms=S.allMatches.filter(m=>(m.eventId||"main")===ev.id); let score=""; if(ms.length){ let a=0,b=0; ms.forEach(m=>{const r=matchResult(m); if(r.winner==="A")a++; if(r.winner==="B")b++;}); score=`${S.event.shortA} ${a}–${b} ${S.event.shortB}`; }
-    return `<button class="item ${sel?"sel":""}" data-act="openEvent" data-id="${ev.id}" style="${sel?"background:color-mix(in srgb,var(--accent) 12%,var(--surface))":""}">${eventLogo(ev)?`<img class="avatar" style="border-radius:10px" src="${eventLogo(ev)}" alt="">`:`<div class="avatar" style="border-radius:10px">${esc((ev.name||"?").slice(0,2).toUpperCase())}</div>`}<div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))}${ev.time?" · "+esc(ev.time):""}${ev.venue?" · "+esc(ev.venue):""}</span></div><div class="stack" style="gap:4px;align-items:flex-end"><span class="pill ${st.k==="live"?"live":st.k==="done"?"":"good"}">${st.k==="done"&&score?esc(score):st.label}</span><span class="tiny muted">${esc(EVENT_TYPES[ev.type]||"Event")} · ${evClubs(ev).map(teamShort).map(esc).join(" + ")}${isJoined(uid, ev.id)?" · you're in":""}</span></div></button>`; };
+    return `<button class="item ${sel?"sel":""}" data-act="openEvent" data-id="${ev.id}" style="${sel?"background:color-mix(in srgb,var(--accent) 12%,var(--surface))":""}">${eventLogo(ev)?`<img class="avatar" style="border-radius:10px" src="${eventLogo(ev)}" alt="">`:`<div class="avatar" style="border-radius:10px">${esc((ev.name||"?").slice(0,2).toUpperCase())}</div>`}<div class="t"><b>${esc(ev.name)}</b><span>${esc(fmtDate(ev.date))}${ev.time?" · "+esc(ev.time):""}${ev.venue?" · "+esc(ev.venue):""}</span></div><div class="stack" style="gap:4px;align-items:flex-end"><span class="pill ${st.k==="live"?"live":st.k==="done"?"":"good"}">${st.k==="done"&&score?esc(score):st.label}</span><span class="tiny muted">${esc(EVENT_TYPES[ev.type]||"Event")} · ${evClubs(ev).map(teamShort).map(esc).join(" + ")}${isJoined(uid, ev.id)?" · you're in":isOptedOut(uid, ev.id)?" · you're out":""}</span></div></button>`; };
   return `<section class="stack"><div class="sec-head"><h3>Events</h3>${isAdmin()?`<button class="btn sm" data-act="newEvent">New event</button>`:isClubAdmin(myTeam())?`<button class="btn sm" data-act="newEvent">New club event</button>`:""}</div>
     <div class="list">${up.map(card).join("")}${past.map(card).join("")}</div><div class="tiny muted">Tap an event for its poster, score, countdown and standings.</div></section>`;
 }
@@ -1050,11 +1052,20 @@ function nextSessionDate(cfg, from=new Date()){
   d.setDate(d.getDate()+add); return localISO(d);
 }
 function fmtDay(iso){ if(!iso) return ""; return new Date(iso+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long", day:"numeric", month:"short"}); }
-function attendees(s){ return Array.isArray(s.attended) ? s.attended : Object.entries(s.rsvps||{}).filter(([,v])=>v==="yes").map(([k])=>k); }
+// Club attendance policy: "optin" = members say "I'm in" (default); "optout" = every active member is in unless they say "Can't" in time.
+const attendMode = t => (teamCfg(t).attendMode==="optout") ? "optout" : "optin";
+const sessionDefaultIn = (s,p) => attendMode(s.team)==="optout" && p.team===s.team && isActive(p) && (!p.sessionOnly || p.sessionOnly===s.id) && !isAway(p, s.date);
+// Effective votes for a session: explicit votes, plus the implicit "yes" of everyone who is in by default (opt-out clubs).
+function effRsvps(s){ const rs={...(s.rsvps||{})}; if(attendMode(s.team)==="optout") for(const p of S.players) if(rs[p.id]===undefined && sessionDefaultIn(s,p)) rs[p.id]="yes"; return rs; }
+const effVote = (s,pid=uid) => effRsvps(s)[pid];
+const policyLine = t => { const c=teamCfg(t); const dl=c.lockDay!=null&&c.lockDay!==""?`${WEEKDAYS[+c.lockDay]} ${c.lockTime||"14:00"}`:null; return attendMode(t)==="optout"
+  ? `Everyone is in by default. If you can't make it, tap “Can't”${dl?` by ${dl}`:" before the session"} — whoever hasn't opted out is expected to play${c.feeMode==="monthly"?"":" and shares the court cost"}.`
+  : `Only those who tap “I'm in”${dl?` by ${dl}`:""} are counted as playing. No vote = not coming.`; };
+function attendees(s){ return Array.isArray(s.attended) ? s.attended : Object.entries(effRsvps(s)).filter(([,v])=>v==="yes").map(([k])=>k); }
 // A session is "upcoming" until its end time has passed (not merely until midnight).
 const nowHM = ()=> { const d=new Date(); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
 const sessionOpen = s => !!s && (s.date>todayISO() || (s.date===todayISO() && (s.end||"23:59")>nowHM()));
-const rsvpCount=(s,v)=> Object.values(s.rsvps||{}).filter(x=>x===v).length;
+const rsvpCount=(s,v)=> Object.values(effRsvps(s)).filter(x=>x===v).length;
 // Vote deadline: per session override (lockAt, ms) or the club rule "votes close <weekday> <time>" before the session.
 function voteDeadline(s){
   if(!s) return null; if(s.lockAt) return +s.lockAt; const cfg=teamCfg(s.team); if(cfg.lockDay==null || cfg.lockDay==="" ) return null;
@@ -1119,9 +1130,9 @@ function vSessions(){
   ${past.length?`<div class="sec-head"><h3>Past sessions</h3><span class="row" style="gap:4px"><button class="btn ghost sm" data-act="tab" data-tab="history">My history</button>${canManage(t)?`<button class="btn ghost sm" data-act="openReport" data-team="${t}">Club report</button>`:""}</span></div><div class="list">${past.map(s=>{ const n=attendees(s).length; const cost=S.expenses.filter(e=>e.sessionId===s.id&&e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0); return `<button class="item" data-act="session" data-id="${s.id}"><div class="t"><b>${esc(fmtDay(s.date))}${s.status==="cancelled"?' <span class="pill warn" style="display:inline-flex">cancelled</span>':""}</b><span>${esc(s.start)}–${esc(s.end)} · ${n} played${cost?` · ${esc(money(cost))}`:""}</span></div></button>`;}).join("")}</div>`:""}`;
 }
 function sessionCard(s, full){
-  const t=s.team, member=canManageTeam(t), mine=(s.rsvps||{})[uid];
-  const yes=Object.entries(s.rsvps||{}).filter(([,v])=>v==="yes").map(([k])=>byId(S.players,k)).filter(Boolean);
-  const maybe=Object.entries(s.rsvps||{}).filter(([,v])=>v==="maybe").map(([k])=>byId(S.players,k)).filter(Boolean);
+  const t=s.team, member=canManageTeam(t), mine=effVote(s), ers=effRsvps(s);
+  const yes=Object.entries(ers).filter(([,v])=>v==="yes").map(([k])=>byId(S.players,k)).filter(Boolean);
+  const maybe=Object.entries(ers).filter(([,v])=>v==="maybe").map(([k])=>byId(S.players,k)).filter(Boolean);
   const awayPs=S.players.filter(p=>p.team===t && isActive(p) && isAway(p,s.date));
   const cost=S.expenses.filter(e=>e.sessionId===s.id&&e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0);
   const canVote = member && me();
@@ -1142,7 +1153,7 @@ function sheetSession(id){
   const played=attendees(s).map(x=>byId(S.players,x)).filter(Boolean);
   openSheet(fmtDay(s.date), `<div class="stack">
     <div class="muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"")}${s.status==="cancelled"?' · <b>cancelled</b>':""}${voteDeadline(s)?` · votes ${votesOpen(s)?"close":"closed"} ${esc(fmtDL(voteDeadline(s)))}`:""}</div>
-    ${canManage(t) && sessionOpen(s) && s.status!=="cancelled" ? (()=>{ const ms=S.players.filter(p=>p.team===t && isActive(p) && (!p.sessionOnly || p.sessionOnly===id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))); return `<div><h3>Votes</h3><div class="tiny muted" style="margin:4px 0 6px">As ${isAdmin()?"admin":"club admin"} you can enter a vote for anyone who couldn't do it themselves. Tap again to clear.</div><div class="stack" style="gap:6px">${ms.map(p=>{ const v=(s.rsvps||{})[p.id]; return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fullName(p))}${p.id===uid?" (you)":""}${isAway(p,s.date)?' <span class="pill warn" style="display:inline-flex">away</span>':""}</span></span><div class="seg" data-rsvpfor="${p.id}" data-session="${id}" style="flex:none;padding:2px"><button aria-pressed="${v==="yes"}" data-val="yes" style="padding:6px 10px">Yes</button><button aria-pressed="${v==="maybe"}" data-val="maybe" style="padding:6px 10px">?</button><button aria-pressed="${v==="no"}" data-val="no" style="padding:6px 10px">No</button></div></div>`; }).join("")}</div></div>`; })() : ""}
+    ${canManage(t) && sessionOpen(s) && s.status!=="cancelled" ? (()=>{ const ms=S.players.filter(p=>p.team===t && isActive(p) && (!p.sessionOnly || p.sessionOnly===id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))); return `<div><h3>Votes</h3><div class="tiny muted" style="margin:4px 0 6px">As ${isAdmin()?"admin":"club admin"} you can enter a vote for anyone who couldn't do it themselves. Tap again to clear.${attendMode(t)==="optout"?" Everyone is in by default in this club.":""}</div><div class="stack" style="gap:6px">${ms.map(p=>{ const v=effVote(s,p.id); return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fullName(p))}${p.id===uid?" (you)":""}${isAway(p,s.date)?' <span class="pill warn" style="display:inline-flex">away</span>':""}</span></span><div class="seg" data-rsvpfor="${p.id}" data-session="${id}" style="flex:none;padding:2px"><button aria-pressed="${v==="yes"}" data-val="yes" style="padding:6px 10px">Yes</button><button aria-pressed="${v==="maybe"}" data-val="maybe" style="padding:6px 10px">?</button><button aria-pressed="${v==="no"}" data-val="no" style="padding:6px 10px">No</button></div></div>`; }).join("")}</div></div>`; })() : ""}
     <div><h3>Played (${played.length})</h3><div class="row" style="gap:6px;margin-top:6px">${played.map(p=>avatar(p,"sm")).join("")||'<span class="small muted">No attendance recorded</span>'}</div></div>
     <div><h3>Costs</h3>${items.length?`<div class="list" style="margin-top:6px">${items.map(e=>`<button class="item" data-act="teamExpense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>paid by ${esc(fullName(byId(S.players,e.paidBy)))} · split ${(e.splitAmong||[]).length} ways</span></div><span class="amt">${esc(money(e.amount))}</span></button>`).join("")}</div>`:'<div class="small muted">No costs logged.</div>'}</div>
   </div>`, member?`<button class="btn" data-act="attendance" data-id="${id}">Who played</button><button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
@@ -1159,9 +1170,10 @@ function sheetTeamCfg(t){
     <label class="f">Address<input id="cAddr" value="${esc(c.address||"")}" placeholder="Askanierring 150, 13585 Berlin"></label>
     <div class="row"><button type="button" class="btn sm" data-act="geoTeam">Find on map</button><span class="tiny muted" id="cfgMapLabel">${realPin(c)?"Pin set — drag to adjust":"Optional: shows a small map. Directions always use the address above."}</span></div>
     <div class="map" id="cfgMap"></div>
-    <div class="row"><label class="f grow">Votes close<select id="cLockDay"><option value="">No deadline</option>${WEEKDAYS.map((d,i)=>`<option value="${i}" ${c.lockDay!=null&&c.lockDay!==""&&+c.lockDay===i?"selected":""}>${d}</option>`).join("")}</select></label><label class="f grow">at<input type="time" id="cLockTime" value="${esc(c.lockTime||"14:00")}"></label></div>
+    <label class="f">Attendance<select id="cAttend"><option value="optin" ${attendMode(t)!=="optout"?"selected":""}>Members tap “I'm in” — no vote means not coming</option><option value="optout" ${attendMode(t)==="optout"?"selected":""}>Everyone is in by default — tap “Can't” to opt out</option></select><span class="help">Each club chooses its own policy. It is shown in the club rules and the reminder uses it.</span></label>
+    <div class="row"><label class="f grow">Votes / opt-out close<select id="cLockDay"><option value="">No deadline</option>${WEEKDAYS.map((d,i)=>`<option value="${i}" ${c.lockDay!=null&&c.lockDay!==""&&+c.lockDay===i?"selected":""}>${d}</option>`).join("")}</select></label><label class="f grow">at<input type="time" id="cLockTime" value="${esc(c.lockTime||"14:00")}"></label></div>
     <div class="tiny muted" style="margin-top:-6px">After the deadline members can't change their vote; club admins can still enter votes for them.</div>
-    <label class="f">Send the "who's coming?" reminder on<select id="cVote">${WEEKDAYS.map((d,i)=>`<option value="${i}" ${(+c.voteDay??5)===i?"selected":""}>${d} morning</option>`).join("")}</select></label>
+    <label class="f">Send the weekly reminder on<select id="cVote">${WEEKDAYS.map((d,i)=>`<option value="${i}" ${(+c.voteDay??5)===i?"selected":""}>${d} morning</option>`).join("")}</select></label>
     <div class="stack" style="gap:6px"><span class="small" style="font-weight:600;color:var(--muted)">How costs are shared</span><div class="seg" id="feeSeg"><button type="button" data-fee="split" aria-pressed="${c.feeMode!=="monthly"}">Split per session</button><button type="button" data-fee="monthly" aria-pressed="${c.feeMode==="monthly"}">Monthly fee</button></div>
       <div id="feeBox" class="stack" style="gap:8px" ${c.feeMode==="monthly"?"":"hidden"}><div class="row"><label class="f grow">Fee per member per month (${esc(S.event.currency||"€")})<input id="cFee" inputmode="decimal" value="${c.feeAmount?(c.feeAmount/100).toFixed(2):""}" placeholder="10.00"></label><label class="f grow">Charged from<input type="month" id="cFeeFrom" value="${esc(c.feeFrom||monthKey(todayISO()))}"></label></div>
       <label class="f">Treasurer (collects fees, pays court costs from the pot)<select id="cTreasurer"><option value="">Choose…</option>${S.players.filter(p=>p.team===t&&isActive(p)&&!p.guest).sort((a,b)=>fullName(a).localeCompare(fullName(b))).map(p=>`<option value="${p.id}" ${p.id===c.treasurer?"selected":""}>${esc(fullName(p))}</option>`).join("")}</select></label>
@@ -1193,10 +1205,12 @@ function sheetAttendance(id){
   const members=S.players.filter(p=>p.team===s.team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   const cur=new Set(attendees(s));
   openSheet("Who played?", `<div class="stack"><p class="small muted" style="margin:0">Tick everyone who actually played on ${esc(fmtDay(s.date))}. Costs for this session are split between them.</p>
-    <div class="list">${members.map(p=>`<label class="item" style="cursor:pointer"><input type="checkbox" class="att" value="${p.id}" ${cur.has(p.id)?"checked":""} style="width:22px;height:22px;accent-color:var(--accent)">${avatar(p,"sm")}<div class="t"><b>${esc(fullName(p))}</b><span>${(s.rsvps||{})[p.id]?"voted "+(s.rsvps||{})[p.id]:"no vote"}</span></div></label>`).join("")}</div></div>`,
+    <div class="list">${members.map(p=>`<label class="item" style="cursor:pointer"><input type="checkbox" class="att" value="${p.id}" ${cur.has(p.id)?"checked":""} style="width:22px;height:22px;accent-color:var(--accent)">${avatar(p,"sm")}<div class="t"><b>${esc(fullName(p))}</b><span>${(s.rsvps||{})[p.id]?"voted "+(s.rsvps||{})[p.id]:effVote(s,p.id)==="yes"?"in by default":"no vote"}</span></div></label>`).join("")}</div></div>`,
     `<button class="btn primary" data-act="saveAttendance" data-id="${id}">Save</button>`);
 }
 function sheetTeamExpense(id, team, sessionId){
+  // Opened from the Money tab (no session given): default to the club's most recent session that has already taken place.
+  if(!id && !sessionId){ const last=S.sessions.filter(s=>s.team===team && s.status!=="cancelled" && s.date<=todayISO()).sort((a,b)=>b.date.localeCompare(a.date))[0]; if(last) sessionId=last.id; }
   const e = id ? byId(S.expenses,id) : {title:"Court", amount:0, paidBy:uid, category:"Court", date:(byId(S.sessions,sessionId)?.date)||localISO(new Date()), note:"", team, sessionId:sessionId||"", splitAmong:null};
   if(!e) return; team=e.team;
   const members=S.players.filter(p=>p.team===team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
@@ -1214,6 +1228,8 @@ function sheetTeamExpense(id, team, sessionId){
       <div class="chips" id="splitChips">${members.map(p=>`<button type="button" class="chip" data-split="${p.id}" aria-pressed="${sel.has(p.id)}">${avatar(p,"sm")}${esc(p.first)}</button>`).join("")}</div></div>
     <label class="f">Note<textarea id="tNote">${esc(e.note||"")}</textarea></label>
   </form>`, `<button class="btn primary" data-act="saveTeamExpense" data-id="${id||""}" data-team="${team}">Save</button>${id&&(isAdmin()||e.createdBy===uid)?`<button class="btn danger" data-act="delExpense" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
+  // Changing the session: take its date and pre-select the people who played it.
+  $("#tSession").addEventListener("change", ev=>{ const s=byId(S.sessions, ev.target.value); const btn=document.querySelector('#sheetHost [data-act="splitPlayed"]'); if(btn) btn.disabled=!s; if(!s) return; $("#tDate").value=s.date; const ids=new Set(attendees(s)); document.querySelectorAll("#splitChips .chip").forEach(c=>c.setAttribute("aria-pressed", ids.has(c.dataset.split))); });
 }
 function sheetPayment(team, from, to, amt){
   const members=S.players.filter(p=>p.team===team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
@@ -1286,6 +1302,7 @@ function sheetClubRules(){
   if(!teams.length){ openSheet("Club rules", `<div class="empty"><b>Register first</b>Club rules, sessions and costs are shown for the club you register with.</div>`, `<button class="btn primary" data-act="register">Register</button>`); return; }
   const block = t=>{ const c=teamCfg(t); return `<section class="card stack"><div class="sec-head"><h3>${esc(teamName(t))}</h3>${canEditTeam(t)?`<button class="btn sm" data-act="editTeamCfg" data-team="${t}">Edit</button>`:""}</div>
     ${c.enabled?`<div><b>Plays ${WEEKDAYS[c.weekday]}s ${esc(c.start)}–${esc(c.end)}</b><br>${placeLine(c)}</div>${c.lat!=null?`<div class="map" id="crMap${t}"></div>`:""}`:`<div class="small muted">No regular session set.</div>`}
+    <div class="banner info" style="display:block"><b>Attendance:</b> ${esc(policyLine(t))}</div>
     ${c.rules?`<div style="white-space:pre-wrap;font-size:15px">${esc(c.rules)}</div>`:`<div class="small muted">No club rules written yet${canManageTeam(t)?" — tap Edit and fill in “Team rules”":""}.</div>`}
     ${c.note?`<div class="small muted">${esc(c.note)}</div>`:""}</section>`; };
   openSheet("Club rules", `<div class="stack">${teams.map(block).join("")}<p class="tiny muted" style="margin:0">Looking for how a match is scored and served? See the game rules. The player guide (PDF) explains the whole app.</p></div>`, `<a class="btn" href="${DOCS_BASE}player-guide.pdf" target="_blank" rel="noopener">Player guide</a><button class="btn" data-act="rules">Game rules</button>`);
@@ -1387,7 +1404,7 @@ function memberStats(p, rng){
   const offered=S.sessions.filter(s=>s.team===p.team && s.date<=today && s.date>=sinceISO && s.date>=rFrom && s.date<=rTo && s.status!=="cancelled");
   const exp=S.expenses.filter(e=>e.scope==="team" && e.team===p.team && (e.date||"")>=rFrom && (e.date||"")<=rTo);
   let paid=0, share=0; for(const e of exp){ if(e.type==="payment"){ if(e.from===p.id) paid+=+e.amount||0; if(e.to===p.id) share+=+e.amount||0; continue; } if(e.paidBy===p.id) paid+=+e.amount||0; const n=(e.splitAmong||[]).length; if(n && (e.splitAmong||[]).includes(p.id)) share+=(+e.amount||0)/n; }
-  const yes=S.sessions.filter(s=>s.team===p.team && (s.rsvps||{})[p.id]==="yes").length, no=S.sessions.filter(s=>s.team===p.team && (s.rsvps||{})[p.id]==="no").length;
+  const yes=S.sessions.filter(s=>s.team===p.team && effVote(s,p.id)==="yes").length, no=S.sessions.filter(s=>s.team===p.team && effVote(s,p.id)==="no").length;
   return {offered:offered.length, played:played.length, rate: offered.length? played.length/offered.length : 0, paid, share, net: paid-share, lastPlayed: played[0]?.date||null, yes, no, playedList:played};
 }
 function matchesOf(pid){ const ids=S.allPairs.filter(x=>(x.players||[]).includes(pid)).map(x=>x.id); return S.allMatches.filter(m=>ids.includes(m.pairA)||ids.includes(m.pairB)).sort((a,b)=>{ const ea=allEvents().find(e=>e.id===(a.eventId||"main"))?.date||"", eb=allEvents().find(e=>e.id===(b.eventId||"main"))?.date||""; return eb.localeCompare(ea) || a.order-b.order; }); }
@@ -1713,7 +1730,7 @@ function vHelp(){
     `<div class="tiny muted">Others see your age, not your date of birth. Only your club's admins can change your status.</div>`].join(""), !m)}
   ${helpSection("3 · The weekly session: vote, play, tick who played", [step([
     `The app creates the next session automatically${cfg&&cfg.enabled?` (${esc(teamShort(t))}: ${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)})`:""} and sends a “who's coming?” reminder on the club's vote day.`,
-    `On Home or in Sessions tap <b>I'm in</b>, <b>Maybe</b> or <b>Can't</b>. Everyone sees who is coming, so the right number of courts gets booked.${cfg&&cfg.lockDay!=null&&cfg.lockDay!==""?` <b>Votes close ${WEEKDAYS[cfg.lockDay]} ${esc(cfg.lockTime||"14:00")}</b> — after that only a club admin can enter or change a vote.`:" Your club may set a deadline after which only a club admin can change votes."}`,
+    `On Home or in Sessions tap <b>I'm in</b>, <b>Maybe</b> or <b>Can't</b>. Everyone sees who is coming, so the right number of courts gets booked.${t?` <b>Your club's policy:</b> ${esc(policyLine(t))}`:" Each club picks its own policy: either you must say “I'm in”, or everyone is in by default and says “Can't” in time."}${cfg&&cfg.lockDay!=null&&cfg.lockDay!==""?` After <b>${WEEKDAYS[cfg.lockDay]} ${esc(cfg.lockTime||"14:00")}</b> only a club admin can enter or change a vote.`:""}`,
     "<b>Directions ↗</b> opens the hall in Maps.",
     "Away for a while (holiday, injury, exams)? Profile → <b>I'm away</b> with the dates: you're counted as Can't for those sessions, get no reminders, and the club sees “away”. Tap <b>I'm back</b> when you return.",
     "After playing, anyone ticks <b>Who played?</b>. That list is what the court cost is split between — so tick it honestly."]),
@@ -1756,7 +1773,8 @@ function vHelp(){
     "<b>Can I see other people's balances?</b> Within your club, yes — the whole point is that everyone sees the same fair numbers.",
     "<b>Something is wrong with a cost.</b> Tap it; whoever added it (or an admin) can edit or delete it. Every change is in the admins' activity log."]))}
   ${isAdmin()||(t&&isClubAdmin(t)) ? helpSection("For organisers", li([
-    "<b>Club setup</b> (Sessions → Edit): weekly slot, hall with map pin, reminder day, <b>vote deadline</b> (e.g. Saturday 14:00), club rules, cost mode (split per session or monthly fee with a treasurer).",
+    "<b>Club setup</b> (Sessions → Edit): weekly slot, hall with map pin, <b>attendance policy</b> (members say “I'm in” / everyone in by default and says “Can't”), its deadline (e.g. Saturday 14:00), reminder day, club rules, cost mode (split per session or monthly fee with a treasurer).",
+    "<b>Event participation</b> (Event → Edit → Participation): sign-up (members join) or everyone-in-by-default (members tap “Can't make it”). Pairs and the schedule are built from the resulting list.",
     "<b>Votes for others</b>: open a session (Sessions → <b>Votes</b>, or the row on Home) and set Yes / ? / No for any member who couldn't — also after the deadline. Each change is in the activity log.",
     "<b>Members</b>: Players → tap a name → Manage: invite rights, set inactive / reactivate, make a guest a full member. Invite links: Players → Invite someone (member, guest or one session).",
     "<b>Events</b> (Admin): create an event, choose the clubs taking part, format (fixed pairs or rotation so everyone plays the same number of matches), courts, best-of, points. Then pairs → Generate schedule → scores on match day.",
@@ -1812,7 +1830,7 @@ function requestsBanner(){
 }
 function requestsCard(t){
   const toMe=reqOpenToMe().filter(r=>r.team===t), mine=reqMine().filter(r=>r.team===t).slice(0,8);
-  if(!toMe.length && !mine.length) return "";
+  if(!toMe.length && !mine.length){ if(!me() || amInactive() || me().team!==t) return ""; return `<section class="card stack" style="gap:8px"><div class="sec-head"><h3>Payment requests</h3><button class="btn sm" data-act="requestMoney" data-team="${t}">Request money</button></div><div class="tiny muted">Ask a team-mate for money — they get a notification and a Pay button with your PayPal / IBAN.</div></section>`; }
   const row=(r, incoming)=>{ const p=byId(S.players, incoming?r.from:r.to); const age=Math.floor((Date.now()-r.createdAt)/864e5);
     return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="min-width:0"><b>${incoming?"":"to "}${esc(p?fullName(p):(incoming?r.fromName:r.toName)||"?")}</b> · ${esc(money(r.amount))}${r.note?`<br><span class="tiny muted">${esc(r.note)}</span>`:""}<br><span class="tiny muted">${age===0?"today":age===1?"yesterday":age+" days ago"}</span></span></span>
       <span class="row" style="gap:6px;flex:none">${incoming ? `<button class="btn primary sm" data-act="payRequest" data-id="${r.id}">Pay</button><button class="btn ghost sm" data-act="declineRequest" data-id="${r.id}">Decline</button>` : r.status==="open" ? `${reqStatusPill(r)}<button class="btn ghost sm" data-act="remindRequest" data-id="${r.id}" ${r.notifyPending?"disabled":""} title="Send another notification">Remind</button><button class="icon-btn" data-act="cancelRequest" data-id="${r.id}" aria-label="Cancel request">${ICONS.x}</button>` : reqStatusPill(r)}</span></div>`; };
@@ -1824,35 +1842,51 @@ function requestsCard(t){
 /* ---------------- Event participation (sign-up) + club-only visibility + club admins managing their club's events ---------------- */
 // Who may organise an event: global admins, or a club admin when the event belongs to their club alone.
 const canManageEvent = ev => !!ev && (isAdmin() || (evClubs(ev).length===1 && isClubAdmin(evClubs(ev)[0])));
-const evRegs = (evId=S.eventId) => (S.allRegs||[]).filter(r=>r.eventId===(evId||"main"));
-const isJoined = (pid=uid, evId=S.eventId) => evRegs(evId).some(r=>r.uid===pid);
+// Event participation policy: "join" = members sign up (default); "all" = every active member of the clubs is in unless they opt out.
+const evAttendMode = ev => (ev && ev.attendMode==="all") ? "all" : "join";
+const evById = evId => allEvents().find(e=>e.id===(evId||"main"));
+const evRegsAll = (evId=S.eventId) => (S.allRegs||[]).filter(r=>r.eventId===(evId||"main"));
+const evRegs = (evId=S.eventId) => evRegsAll(evId).filter(r=>!r.out);        // sign-ups
+const evOuts = (evId=S.eventId) => evRegsAll(evId).filter(r=>r.out);         // opt-outs (everyone-in events)
+const evDefaultPool = (evId=S.eventId) => { const ev=evById(evId); const cs=ev?evClubs(ev):[]; const outs=new Set(evOuts(evId).map(r=>r.uid)); return activePlayers().filter(p=>cs.includes(p.team) && !p.sessionOnly && !outs.has(p.id)); };
+const isJoined = (pid=uid, evId=S.eventId) => evAttendMode(evById(evId))==="all" ? evDefaultPool(evId).some(p=>p.id===pid) : evRegs(evId).some(r=>r.uid===pid);
+const isOptedOut = (pid=uid, evId=S.eventId) => evOuts(evId).some(r=>r.uid===pid);
 const signupOpen = ev => !!ev && ev.regOpen!==false && (ev.date||"9999")>=todayISO();
-// Players an event is built from: the ones who joined; when nobody has joined yet, every active member (the old behaviour).
-function evPool(evId=S.eventId){ const regs=evRegs(evId); if(regs.length) return regs.map(r=>byId(S.players,r.uid)).filter(p=>p&&isActive(p)); return activePlayers(); }
+// Players an event is built from: everyone-in events → the clubs' active members minus opt-outs; sign-up events → the ones who joined,
+// or (when nobody has joined yet) every active member.
+function evPool(evId=S.eventId){ if(evAttendMode(evById(evId))==="all") return evDefaultPool(evId); const regs=evRegs(evId); if(regs.length) return regs.map(r=>byId(S.players,r.uid)).filter(p=>p&&isActive(p)); return activePlayers(); }
 const poolTeam = (side, evId=S.eventId) => { if(evClubs(S.ev).length<2) return side==="A" ? evPool(evId) : []; const club=sideClub(side); return club ? evPool(evId).filter(p=>p.team===club) : []; };
-const usingAllMembers = (evId=S.eventId) => !evRegs(evId).length;
+const usingAllMembers = (evId=S.eventId) => evAttendMode(evById(evId))!=="all" && !evRegs(evId).length;
 async function joinEvent(pid, evId, by){
-  const p=byId(S.players,pid); if(!p) return; const id=`${evId}_${pid}`;
+  const p=byId(S.players,pid); if(!p) return; const id=`${evId}_${pid}`; const name=evById(evId)?.name||evId;
+  if(evAttendMode(evById(evId))==="all"){ if(isOptedOut(pid, evId)) await store.remove("eventRegs", id); audit("event", `${fullName(p)} is back in ${name}${by&&by!==pid?" (by "+fullName(me())+")":""}`, {team:p.team, eventId:evId}); return; }
   await store.set("eventRegs", id, {eventId:evId, uid:pid, team:p.team, at:Date.now(), by:by||pid});
-  audit("event", `${fullName(p)} joined ${allEvents().find(e=>e.id===evId)?.name||evId}${by&&by!==pid?" (added by "+fullName(me())+")":""}`, {team:p.team, eventId:evId});
+  audit("event", `${fullName(p)} joined ${name}${by&&by!==pid?" (added by "+fullName(me())+")":""}`, {team:p.team, eventId:evId});
 }
 async function leaveEvent(pid, evId){
-  const p=byId(S.players,pid); await store.remove("eventRegs", `${evId}_${pid}`);
-  audit("event", `${p?fullName(p):pid} left ${allEvents().find(e=>e.id===evId)?.name||evId}`, {team:p?.team||null, eventId:evId});
+  const p=byId(S.players,pid); const id=`${evId}_${pid}`; const name=evById(evId)?.name||evId;
+  if(evAttendMode(evById(evId))==="all" && p){ if(evRegsAll(evId).some(r=>r.uid===pid)) await store.remove("eventRegs", id); await store.set("eventRegs", id, {eventId:evId, uid:pid, team:p.team, out:true, at:Date.now(), by:uid}); audit("event", `${fullName(p)} opted out of ${name}`, {team:p.team, eventId:evId}); return; }
+  await store.remove("eventRegs", id);
+  audit("event", `${p?fullName(p):pid} left ${name}`, {team:p?.team||null, eventId:evId});
 }
 function participantsCard(){
-  const ev=S.ev; if(!ev) return ""; const clubs=evClubs(ev); const regs=evRegs(); const m=me(); const open=signupOpen(ev);
-  const mine = m && clubs.includes(m.team); const joined = isJoined();
-  const col = t=>{ const ps=regs.filter(r=>r.team===t).map(r=>byId(S.players,r.uid)).filter(Boolean).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const ev=S.ev; if(!ev) return ""; const clubs=evClubs(ev); const all=evAttendMode(ev)==="all"; const regs=evRegs(); const m=me(); const open=signupOpen(ev);
+  const mine = m && clubs.includes(m.team); const joined = isJoined(); const pool=evPool();
+  const col = t=>{ const ps=(all ? pool.filter(p=>p.team===t) : regs.filter(r=>r.team===t).map(r=>byId(S.players,r.uid)).filter(Boolean)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+    const outs = all ? evOuts().filter(r=>r.team===t).map(r=>byId(S.players,r.uid)).filter(Boolean).sort((a,b)=>fullName(a).localeCompare(fullName(b))) : [];
     const canAdd = (canManageEvent(ev) || isClubAdmin(t)) && (open || isAdmin());
-    const rest = canAdd ? S.players.filter(p=>p.team===t && isActive(p) && !p.sessionOnly && !ps.some(x=>x.id===p.id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))) : [];
+    const rest = canAdd && !all ? S.players.filter(p=>p.team===t && isActive(p) && !p.sessionOnly && !ps.some(x=>x.id===p.id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))) : [];
     return `<div class="stack" style="gap:6px"><div class="sec-head">${clubPill(t)}<span class="small muted">${ps.length} in</span></div>
-      ${ps.length?`<div class="chips">${ps.map(p=>`<button class="chip" data-act="player" data-id="${p.id}" aria-pressed="${p.id===uid}">${avatar(p,"sm")}${esc(p.first)}${canAdd&&p.id!==uid?`<span data-act="unjoin" data-id="${p.id}" style="margin-left:4px;opacity:.6">✕</span>`:""}</button>`).join("")}</div>`:`<div class="tiny muted">Nobody from ${esc(teamName(t))} yet.</div>`}
+      ${ps.length?`<div class="chips">${ps.map(p=>`<button class="chip" data-act="player" data-id="${p.id}" aria-pressed="${p.id===uid}">${avatar(p,"sm")}${esc(p.first)}${canAdd&&p.id!==uid?`<span data-act="unjoin" data-id="${p.id}" style="margin-left:4px;opacity:.6" title="${all?"Mark as not coming":"Remove"}">✕</span>`:""}</button>`).join("")}</div>`:`<div class="tiny muted">Nobody from ${esc(teamName(t))} yet.</div>`}
+      ${outs.length?`<div class="tiny muted">Not coming: ${outs.map(p=>`${esc(p.first)}${canAdd?` <span data-act="joinFor" data-id="${p.id}" style="cursor:pointer;text-decoration:underline">undo</span>`:""}`).join(", ")}</div>`:""}
       ${rest.length?`<details><summary class="tiny muted" style="cursor:pointer">Add a ${esc(teamShort(t))} member…</summary><div class="chips" style="margin-top:6px">${rest.map(p=>`<button class="chip" data-act="joinFor" data-id="${p.id}">${avatar(p,"sm")}${esc(p.first)}</button>`).join("")}</div></details>`:""}</div>`; };
-  return `<section class="card stack"><div class="sec-head"><h3>Who's playing</h3><span class="row" style="gap:6px;flex:none">${mine && !amInactive() ? (joined ? `<span class="pill good">you're in</span>${open?`<button class="btn ghost sm" data-act="leaveEvent">Leave</button>`:""}` : open ? `<button class="btn primary sm" data-act="joinEvent">Join this event</button>` : `<span class="pill">sign-up closed</span>`) : ""}${canManageEvent(ev)?`<button class="btn ghost sm" data-act="editEvent">Edit</button>`:""}</span></div>
-    ${!regs.length?`<div class="small muted">${open?"Nobody has signed up yet. Until someone does, the organiser's pairs and schedule use all members of the clubs.":"No sign-ups recorded; all members of the clubs count as playing."}</div>`:""}
+  const myCtl = !(mine && !amInactive()) ? "" : all
+    ? (joined ? `<span class="pill good">you're in</span>${open?`<button class="btn ghost sm" data-act="leaveEvent">Can't make it</button>`:""}` : `<span class="pill warn">you're out</span>${open?`<button class="btn primary sm" data-act="joinEvent">I'm in after all</button>`:""}`)
+    : (joined ? `<span class="pill good">you're in</span>${open?`<button class="btn ghost sm" data-act="leaveEvent">Leave</button>`:""}` : open ? `<button class="btn primary sm" data-act="joinEvent">Join this event</button>` : `<span class="pill">sign-up closed</span>`);
+  return `<section class="card stack"><div class="sec-head"><h3>Who's playing</h3><span class="row" style="gap:6px;flex:none">${myCtl}${canManageEvent(ev)?`<button class="btn ghost sm" data-act="editEvent">Edit</button>`:""}</span></div>
+    ${all?`<div class="small muted">Everyone in ${clubs.map(teamName).map(esc).join(" and ")} is in by default. Can't make it? Tap <b>Can't make it</b>${open?" before the event day":""} — pairs and schedule are built from whoever is left.</div>`:!regs.length?`<div class="small muted">${open?"Nobody has signed up yet. Until someone does, the organiser's pairs and schedule use all members of the clubs.":"No sign-ups recorded; all members of the clubs count as playing."}</div>`:""}
     <div class="${clubs.length>1?"pairgrid":"stack"}">${clubs.map(col).join("")}</div>
-    ${open?`<div class="tiny muted">Sign-up ${ev.regOpen===false?"is closed by the organiser":"closes on the event day"}. Pairs and the schedule are built from the people listed here.</div>`:""}</section>`;
+    ${open&&!all?`<div class="tiny muted">Sign-up ${ev.regOpen===false?"is closed by the organiser":"closes on the event day"}. Pairs and the schedule are built from the people listed here.</div>`:""}</section>`;
 }
 // Players tab for members and club admins: only their own club. Admins see both clubs.
 function vPlayersClub(){
@@ -2094,7 +2128,7 @@ document.addEventListener("click", e => {
     useInviteCode: ()=> guard(async ()=>{ const code=($("#inviteCodeInput").value||"").trim().toUpperCase(); if(!code){ toast("Enter the code"); return; } lsSet("ppc_invite", code); await loadPendingInvite(); if(S.pendingInvite && !S.pendingInvite.missing && inviteValid(S.pendingInvite)) sheetProfile(null); else toast("That code isn't valid"); }),
     makeMember: ()=> guard(async ()=>{ await store.update("players", id, {guest:false, sessionOnly:null, updatedAt:Date.now()}); audit("member", `${fullName(byId(S.players,id))} made a full member`, {team:byId(S.players,id)?.team}); toast("Now a full member"); sheetPlayer(id); }),
     editTeamCfg: ()=> sheetTeamCfg(b.dataset.team),
-    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, lockDay:$("#cLockDay").value===""?null:+$("#cLockDay").value, lockTime:$("#cLockTime").value||"14:00", note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:realPin(S._geo)&&!S._geo.draft?S._geo.lat:null, lon:realPin(S._geo)&&!S._geo.draft?S._geo.lon:null, feeMode:S._feeMode||teamCfg(t).feeMode||"split", ...(S._clubLogo!==undefined?{logo:S._clubLogo}:{}), feeAmount:Math.round(parseFloat(($("#cFee").value||"0").replace(",","."))*100)||0, feeFrom:$("#cFeeFrom").value||monthKey(todayISO()), treasurer:$("#cTreasurer").value||null, updatedAt:Date.now(), updatedBy:uid||null}); audit("team", `${teamShort(t)} setup saved (${(S._feeMode||teamCfg(t).feeMode)==="monthly"?"monthly fee":"split per session"})`, {team:t}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
+    saveTeamCfg: ()=> guard(async ()=>{ const t=b.dataset.team; await store.set("teams", t, {enabled:$("#cEnabled").checked, weekday:+$("#cDay").value, start:$("#cStart").value||"08:30", end:$("#cEnd").value||"09:30", location:$("#cLoc").value.trim(), address:$("#cAddr").value.trim(), voteDay:+$("#cVote").value, lockDay:$("#cLockDay").value===""?null:+$("#cLockDay").value, lockTime:$("#cLockTime").value||"14:00", attendMode:$("#cAttend").value==="optout"?"optout":"optin", note:$("#cNote").value.trim(), rules:$("#cRules").value.trim(), lat:realPin(S._geo)&&!S._geo.draft?S._geo.lat:null, lon:realPin(S._geo)&&!S._geo.draft?S._geo.lon:null, feeMode:S._feeMode||teamCfg(t).feeMode||"split", ...(S._clubLogo!==undefined?{logo:S._clubLogo}:{}), feeAmount:Math.round(parseFloat(($("#cFee").value||"0").replace(",","."))*100)||0, feeFrom:$("#cFeeFrom").value||monthKey(todayISO()), treasurer:$("#cTreasurer").value||null, updatedAt:Date.now(), updatedBy:uid||null}); audit("team", `${teamShort(t)} setup saved (${(S._feeMode||teamCfg(t).feeMode)==="monthly"?"monthly fee":"split per session"})`, {team:t}); closeSheet(); toast("Saved"); setTimeout(ensureNextSessions, 300); }),
     addSession: ()=> sheetEditSession(null, b.dataset.team),
     editSession: ()=> sheetEditSession(id),
     session: ()=> sheetSession(id),
@@ -2169,6 +2203,7 @@ document.addEventListener("click", e => {
       if(existing){ await store.update("players", id, data); toast("Profile saved"+((data.paypal||data.iban)?" · payment details stored":"")); }
       else {
         const newId = S._adminAdd ? store.newId() : uid;
+        if(!S._adminAdd && lsGet("ppc_invite", null) && !S.pendingInvite) await loadPendingInvite();
         const inv = (!S._adminAdd && S.pendingInvite && !S.pendingInvite.missing && inviteValid(S.pendingInvite)) ? S.pendingInvite : null;
         const extra = inv ? {invite:inv.id, guest: inv.kind!=="member", sessionOnly: inv.kind==="session" ? inv.sessionId : null, team: inv.team} : {};
         await store.set("players", newId, {...data, ...extra, manual: !!S._adminAdd, createdAt:Date.now()});
@@ -2211,18 +2246,18 @@ document.addEventListener("click", e => {
       const data={name:$("#evName").value.trim()||"Badminton challenge", date:$("#evDate").value, time:$("#evTime").value, venue:$("#evVenue").value.trim(), courts:+$("#evCourts").value||1, legs:+$("#evLegs").value||1, format:$("#evFormat").value, matchesPerPlayer:+$("#evMpp").value||3, bestOf:+$("#evBestOf").value||3, pointsTo:+$("#evPts").value||21, currency:v("#evCur",S.event.currency)||"€", registrationOpen:$("#evReg")?$("#evReg").checked:S.event.registrationOpen, allowPlayerScores:$("#evScores")?$("#evScores").checked:S.event.allowPlayerScores, houseRules:$("#evRules").value.trim(), type:$("#evType").value, description:$("#evDesc").value.trim(), appName:v("#evApp",S.event.appName).trim()||"Badminton"};
       const clubs=isAdmin()?[...document.querySelectorAll(".evClub:checked")].map(c=>c.value):evClubs(S.ev); if(!clubs.length){ toast("Pick at least one club"); return; } if(clubs.length>2){ toast("Pick one or two clubs — matches are club against club"); return; }
       if(isAdmin()) await store.update("settings","event", pick(data,GLOBAL_KEYS.filter(k=>!["teamA","shortA","teamB","shortB"].includes(k))));
-      const evPatch={...pick(data,EVENT_KEYS), clubs, regOpen:$("#evRegOpen")?$("#evRegOpen").checked:true, updatedAt:Date.now()}; if(S._evLogo!==undefined) evPatch.logo=S._evLogo;
+      const evPatch={...pick(data,EVENT_KEYS), clubs, regOpen:$("#evRegOpen")?$("#evRegOpen").checked:true, attendMode:$("#evAttend")?.value==="all"?"all":"join", updatedAt:Date.now()}; if(S._evLogo!==undefined) evPatch.logo=S._evLogo;
       await store.update("events", S.eventId, evPatch);
       audit("event", `${data.name} edited`, {team:null, eventId:S.eventId}); closeSheet(); toast("Event saved"); }),
     newEvent: ()=> sheetNewEvent(),
     saveNewEvent: ()=> guard(async ()=>{ const f=$("#neForm"); if(!f.reportValidity()) return;
       const data={name:$("#neName").value.trim(), type:$("#neType").value, date:$("#neDate").value, time:$("#neTime").value, venue:$("#neVenue").value.trim(), description:$("#neDesc").value.trim(), courts:+$("#neCourts").value||1, format:$("#neFormat").value, legs:1, matchesPerPlayer:+$("#neMpp").value||3, bestOf:+$("#neBestOf").value||3, pointsTo:21, houseRules:"", createdAt:Date.now(), createdBy:uid||null};
-      const clubs=isAdmin()?[...document.querySelectorAll(".neClub:checked")].map(c=>c.value):[myTeam()]; if(!clubs.length){ toast("Pick at least one club"); return; } if(clubs.length>2){ toast("Pick one or two clubs — matches are club against club"); return; } data.clubs=clubs; data.regOpen=true; if(S._evLogo) data.logo=S._evLogo;
+      const clubs=isAdmin()?[...document.querySelectorAll(".neClub:checked")].map(c=>c.value):[myTeam()]; if(!clubs.length){ toast("Pick at least one club"); return; } if(clubs.length>2){ toast("Pick one or two clubs — matches are club against club"); return; } data.clubs=clubs; data.regOpen=true; data.attendMode=$("#neAttend")?.value==="all"?"all":"join"; if(S._evLogo) data.logo=S._evLogo;
       const id = (data.date+"-"+data.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")).slice(0,60) + "-" + rnd().slice(0,3);
       await store.set("events", id, data); audit("event", `${data.name} created (${fmtDate(data.date)})`, {team:null, eventId:id}); closeSheet(); toast("Event created"); selectEvent(id); }),
     selectEvent: ()=> selectEvent(id),
     joinEvent: ()=> guard(async ()=>{ if(!signupOpen(S.ev)){ toast("Sign-up is closed"); return; } await joinEvent(uid, S.eventId); toast("You're in"); }),
-    leaveEvent: ()=> confirmSheet("Leave event", `Leave <b>${esc(S.ev.name)}</b>? If pairs or a schedule already include you, tell the organiser.`, "Leave", ()=>guard(async ()=>{ await leaveEvent(uid, S.eventId); })),
+    leaveEvent: ()=> confirmSheet(evAttendMode(S.ev)==="all"?"Can't make it":"Leave event", evAttendMode(S.ev)==="all"?`Mark yourself as <b>not coming</b> to ${esc(S.ev.name)}? You can undo it with “I'm in after all”. If pairs or a schedule already include you, tell the organiser.`:`Leave <b>${esc(S.ev.name)}</b>? If pairs or a schedule already include you, tell the organiser.`, evAttendMode(S.ev)==="all"?"I can't make it":"Leave", ()=>guard(async ()=>{ await leaveEvent(uid, S.eventId); })),
     joinFor: ()=> guard(async ()=>{ const p=byId(S.players,id); if(!p || !(canManageEvent(S.ev)||isClubAdmin(p.team))) return; await joinEvent(id, S.eventId, uid); toast(`${p.first} added`); }),
     unjoin: ()=> guard(async ()=>{ const p=byId(S.players,id); if(!p || !(canManageEvent(S.ev)||isClubAdmin(p.team))) return; await leaveEvent(id, S.eventId); toast(`${p.first} removed`); }),
     openEvent: ()=>{ S.eventId=id; lsSet("ppc_event", id); S.pick=[]; recomputeEvent(); window.refreshScopedSubs?.(); S.tab="event"; render(); },
@@ -2363,7 +2398,7 @@ async function boot(){
   // Own profile (needed to know the club); the club's members come from refreshScopedSubs.
   if(uid) resub("me","players",{id:uid}, rows=>{ S.scopedData.me=rows; mergePlayers(); ready.me=true; }); else { ready.me=true; }
   if(location.hash==="#sessions") S.tab="sessions";
-  pickupInviteFromUrl(); setTimeout(loadPendingInvite, 1500);
+  pickupInviteFromUrl(); loadPendingInvite(); setTimeout(loadPendingInvite, 1500);
   if(lsGet("ppc_noLink", false)){ S._noLinkHint=true; lsSet("ppc_noLink", false); }
   if(lsGet("ppc_restored", false)){ lsSet("ppc_restored", false); setTimeout(()=>{ if(me()) toast(`Welcome back, ${me().first}!`); }, 2500); }
   if(!isDemo && "Notification" in window && Notification.permission==="granted") setTimeout(()=>registerPush(false), 2000);

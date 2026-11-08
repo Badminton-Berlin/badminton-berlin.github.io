@@ -193,9 +193,23 @@ have an expiry and a use count. With "Open registration" off, registration is in
   history, roles, notifications, FAQ, organiser section for admins) and links to the PDF guides.
 - **Votes for others**: club admins / admins open a session (Sessions → *Votes*, or the row on Home) and set Yes / ? / No
   per member (`data-rsvpfor`); changes are audited.
-- **Vote deadline**: `teams/{t}.lockDay` (weekday) + `lockTime`, or per session `sessions/{id}.lockAt` (ms).
+- **Vote / opt-out deadline**: `teams/{t}.lockDay` (weekday) + `lockTime`, or per session `sessions/{id}.lockAt` (ms).
   `voteDeadline(s)` = the last `lockDay lockTime` before the session start; after it members can't change their vote
   (buttons hidden, "Votes closed Sat 14:00"), managers still can.
+
+## Attendance policy per club, participation policy per event
+
+- **Club policy** `teams/{t}.attendMode`: `optin` (default — members tap *I'm in*; no vote = not coming) or `optout`
+  (every active member is in by default; members tap *Can't* in time). Set under Sessions → Edit → *Attendance*.
+  `effRsvps(s)` merges the explicit votes with the implicit "yes" of everyone who is in by default (away members excluded);
+  `rsvpCount`, the yes-lists, *Who played* defaults and attendance stats all use it. The deadline (`lockDay/lockTime`) applies
+  to both policies ("Votes / opt-out close"). The weekly push reminder adapts its wording (`scripts/notify.mjs`).
+- **Rules book**: the club rules sheet (document icon) shows an *Attendance:* line generated from the policy and deadline,
+  above the club's own written rules; the in-app guide shows the same line under "Your club's policy".
+- **Event policy** `events/{id}.attendMode`: `join` (default — sign-up) or `all` (everyone in the event's clubs is in unless
+  they opt out). Opt-outs are `eventRegs/{eventId}_{uid}` with `out: true`; `evPool()` = clubs' active members minus opt-outs.
+  Members see *you're in* + **Can't make it** / *you're out* + **I'm in after all**; organisers see a "Not coming" line with undo.
+  Set under Event → Edit → *Participation* (also when creating an event).
 
 ## Payment requests
 

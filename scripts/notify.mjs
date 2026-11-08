@@ -104,8 +104,12 @@ for (const t of clubIds) {
   const teamTokens = tokens.filter(x => players[x.uid]?.team === t && x.token && !isAway(players[x.uid], date)).map(x => x.token);
   if (!teamTokens.length) { console.log(t, "no devices with notifications on"); continue; }
   const dayName = new Date(date + "T12:00:00").toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"short" });
-  const title = `${teamName(t)}: who's playing ${dayName}?`;
-  const body = `${s.start}–${s.end} at ${s.location || "the usual place"}. Tap to vote Yes / Maybe / No.`;
+  const WD = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const dl = (cfg.lockDay != null && cfg.lockDay !== "") ? ` by ${WD[+cfg.lockDay]} ${cfg.lockTime || "14:00"}` : "";
+  const optout = cfg.attendMode === "optout";
+  const title = optout ? `${teamName(t)}: ${dayName} — can't make it?` : `${teamName(t)}: who's playing ${dayName}?`;
+  const body = optout ? `${s.start}–${s.end} at ${s.location || "the usual place"}. Everyone is in by default — tap Can't${dl} if you're not coming.`
+                      : `${s.start}–${s.end} at ${s.location || "the usual place"}. Tap to vote Yes / Maybe / No${dl}.`;
   const res = await admin.messaging().sendEachForMulticast({
     tokens: teamTokens,
     notification: { title, body },
