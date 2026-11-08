@@ -1,0 +1,4 @@
+[
+  {"col": "players", "id": "tnUgDohLYENjhjH298xn50qfgQD3", "update": {"active": true, "deactivatedAt": null, "deactivatedBy": null, "note": null, "role": "clubAdmin"}},
+  {"col": "players", "id": "n7vnqvPf8ocYyGIh7y5dEhgRJYu2", "update": {"active": false, "deactivatedAt": 1794166200000, "deactivatedBy": "maintenance", "role": null, "note": "duplicate of Hitesh Malhotra (tnUgDohL…, Google-linked, super admin), deactivated 2026-11-08"}}
+]
