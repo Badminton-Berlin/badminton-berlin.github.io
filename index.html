@@ -584,7 +584,7 @@ function newMembersCard(){
 function vHome(){
   const m=me(), today=todayISO();
   if(amInactive()) return vInactiveHome();
-  const banner = inviteBanner() || (!m ? (isDemo ? `<div class="banner info"><span class="grow">Try the player side: register a test profile.</span><span class="row" style="gap:6px;flex:none"><button class="btn primary" data-act="register">Register</button><button class="btn ghost" data-act="restoreGoogle">Restore</button></span></div>` : `<div class="banner info"><span class="grow">You're not registered yet.</span><span class="row" style="gap:6px;flex:none"><button class="btn primary" data-act="register">Register</button><button class="btn ghost" data-act="restoreGoogle" title="Already registered on another phone? Sign in with the Google account you linked">Restore</button></span></div>`) : "");
+  const banner = inviteBanner() || (!m ? (isDemo ? `<section class="card stack" style="border-color:var(--accent);gap:10px"><div><b style="font-family:var(--f-display);font-size:20px">Welcome</b><div class="small muted">Try the player side: register a test profile. In the live app members also sign in with Google to get an existing profile back.</div></div><div class="row"><button class="btn primary grow" data-act="restoreGoogle" style="gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;flex:none" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/></svg> Sign in with Google</button><button class="btn grow" data-act="register">Register</button></div></section>` : `<section class="card stack" style="border-color:var(--accent);gap:10px"><div><b style="font-family:var(--f-display);font-size:20px">Welcome</b><div class="small muted">Already a member? Sign in with the Google account you linked to your profile and everything comes back — profile, history, balance, roles. New here? Register.</div></div><div class="row"><button class="btn primary grow" data-act="restoreGoogle" style="gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;flex:none" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/></svg> Sign in with Google</button><button class="btn grow" data-act="register">Register</button></div>${S._noLinkHint?`<div class="banner" style="display:block"><b>No profile is linked to that Google account yet.</b> On the phone where you registered: your photo (top right) → <b>Link Google account</b>. Then sign in here again. If you never registered, tap Register — the profile will be linked to this Google account from the start.</div>`:""}</section>`) : "");
   // next team session with vote
   let sessionCard="";
   if(m){ const s=S.sessions.filter(x=>x.team===m.team && x.date>=today && x.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -618,7 +618,7 @@ function vHome(){
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
   const evBlock = (m && m.sessionOnly) ? "" : (!m && !isAdmin() && !isDemo) ? `<section class="card stack"><h3>Events</h3><div class="small muted">Register with your club to see its events, sessions and costs.</div></section>` : eventsList();
-  return banner + awayBanner() + requestsBanner() + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard + CREDIT;
+  return banner + awayBanner() + requestsBanner() + linkNudge() + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard + CREDIT;
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
@@ -994,6 +994,7 @@ function sheetProfile(id){
   if(isNew && !isDemo && S.event.registrationOpen===false && !isAdmin() && !inv){ openSheet("Invite only", `<div class="stack"><div class="empty"><b>Registration is by invitation</b>Ask your club's organiser for an invite link, or enter the code you were given.</div><form id="codeForm" class="stack"><label class="f">Invite code<input id="inviteCodeInput" placeholder="ABCD2345" style="text-transform:uppercase"></label></form></div>`, `<button class="btn primary" data-act="useInviteCode">Continue</button>`); return; }
   openSheet(isNew ? (S._adminAdd?"Add player":"Register") : "Edit profile", `<form id="profForm" class="stack">
     ${inv ? `<div class="banner info" style="display:block">${inv.kind==="session"?`Guest for <b>${esc(inv.sessionLabel)}</b> with ${esc(teamName(inv.team))}`:inv.kind==="guest"?`Guest of ${esc(teamName(inv.team))}`:`Joining ${esc(teamName(inv.team))}`}${inv.createdByName?` · invited by ${esc(inv.createdByName)}`:""}</div>` : isNew && !S._adminAdd ? `<p class="lead" style="margin:0">Your profile is visible to everyone in the challenge. Pick your team, add a photo so people recognise you on court.</p>`:""}
+    ${isNew && !S._adminAdd && !isDemo ? (isLinked() ? `<div class="banner info" style="display:block">✓ Google account connected${linkedEmail()?` (${esc(linkedEmail())})`:""} — your profile will work on every device.</div>` : `<div class="card stack" style="gap:6px;border-color:var(--accent)"><div class="small"><b>Recommended:</b> connect your Google account first, so this profile works on any phone or computer and can't be lost.</div><button type="button" class="btn primary" data-act="linkGoogle" style="gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;flex:none" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/></svg> Continue with Google</button><div class="tiny muted">Or register without it (this device only — you can connect Google later from your profile).</div></div>`) : ""}
     <div class="photo-pick"><div id="photoPreview">${S._photo?`<img class="avatar lg" src="${S._photo}" alt="">`:`<div class="avatar lg">${ICONS.camera.replace('<svg','<svg style="width:32px;height:32px;stroke:currentColor;fill:none;stroke-width:1.8"')}</div>`}</div>
       <div class="stack" style="gap:6px"><button type="button" class="btn sm" data-act="pickPhoto">${S._photo?"Change photo":"Add photo"}</button><input type="file" id="photoInput" accept="image/*" style="display:none">${S._photo?`<button type="button" class="btn ghost sm" data-act="clearPhoto">Remove</button>`:""}<span class="help">Square crop, stored small.</span></div></div>
     <div class="row"><label class="f grow">First name<input id="pFirst" required autocomplete="given-name" value="${esc(p.first)}"></label><label class="f grow">Last name<input id="pLast" required autocomplete="family-name" value="${esc(p.last)}"></label></div>
@@ -1561,15 +1562,15 @@ function accountCard(compact){
   if(isDemo && !compact) return `<section class="card stack"><h3>Your account</h3><div class="small muted">Live app only: link a Google account so your profile, history and admin rights survive a new phone or a cleared browser.</div></section>`;
   const em=linkedEmail();
   return `<section class="card stack" style="gap:8px"><div class="sec-head"><h3>Your account</h3>${em||isLinked()?`<span class="pill good">linked</span>`:""}</div>
-    ${em||isLinked()?`<div class="small">Linked to Google${em?`: <b>${esc(em)}</b>`:""}.<br><span class="muted">On a new phone: open the app → <b>Restore with Google</b> and everything is back, including admin rights.</span></div>`
-    :`<div class="small muted">Your profile is tied to this device. Link a Google account so you can restore it on a new phone — or if you install the app to the home screen after registering in the browser.</div><button class="btn primary" data-act="linkGoogle">Link Google account</button>`}
+    ${em||isLinked()?`<div class="small">Connected to Google${em?`: <b>${esc(em)}</b>`:""}.<br><span class="muted">On any other phone or computer: open the app → <b>Sign in with Google</b> and everything is back, including admin rights.</span></div>`
+    :`<div class="small muted">Your profile is tied to this device. Link a Google account so you can restore it on a new phone — or if you install the app to the home screen after registering in the browser.</div><button class="btn primary" data-act="linkGoogle" style="gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;flex:none" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/></svg> Connect Google account</button>`}
   </section>`;
 }
 async function linkGoogle(){
   if(isDemo){ S._demoLinked=true; toast("Demo: pretend-linked to Google"); render(); if($("#sheetHost").children.length) sheetPlayer(uid); return; }
   const {mod, a}=S.fbAuth||{}; if(!mod){ toast("Sign-in not available"); return; }
   const prov=new mod.GoogleAuthProvider(); prov.setCustomParameters({prompt:"select_account"});
-  try{ await mod.linkWithPopup(a.currentUser, prov); await store.update("players", uid, {linked:"google", updatedAt:Date.now()}).catch(()=>{}); audit("link", "linked Google account"); toast("Google account linked"); closeSheet(); }
+  try{ await mod.linkWithPopup(a.currentUser, prov); if(me()){ await store.update("players", uid, {linked:"google", updatedAt:Date.now()}).catch(()=>{}); audit("link", "linked Google account"); } toast("Google account connected"); if($("#profForm") && !me()){ const keep={first:$("#pFirst")?.value, last:$("#pLast")?.value, dob:$("#pDob")?.value}; sheetProfile(); if(keep.first!=null){ $("#pFirst").value=keep.first; $("#pLast").value=keep.last; if($("#pDob")) $("#pDob").value=keep.dob; } } else closeSheet(); }
   catch(e){ console.warn(e);
     if(e.code==="auth/credential-already-in-use" || e.code==="auth/email-already-in-use"){ const cred=mod.GoogleAuthProvider.credentialFromError(e);
       confirmSheet("Already linked", "This Google account already belongs to another profile in this app. Switch this device to that profile? (The current unregistered profile on this device is left behind.)", "Switch profile", async ()=>{ try{ await mod.signInWithCredential(a, cred); location.reload(); }catch(err){ toast("Could not switch: "+(err.code||err.message)); } }); }
@@ -1580,7 +1581,9 @@ async function restoreGoogle(){
   if(isDemo){ toast("Demo mode: restoring works in the live app"); return; }
   const {mod, a}=S.fbAuth||{}; if(!mod){ toast("Sign-in not available"); return; }
   const prov=new mod.GoogleAuthProvider(); prov.setCustomParameters({prompt:"select_account"});
-  try{ const r=await mod.signInWithPopup(a, prov); const had=await store.get("players", r.user.uid); toast(had?"Welcome back!":"No profile is linked to this Google account yet — register and it will be linked."); if(!had){ try{ await store.set("settings","_touch_"+r.user.uid.slice(0,6), {}); }catch(_){} } setTimeout(()=>location.reload(), 900); }
+  try{ const r=await mod.signInWithPopup(a, prov); const had=await store.get("players", r.user.uid);
+    if(had){ toast("Welcome back!"); lsSet("ppc_restored", true); setTimeout(()=>location.reload(), 700); }
+    else { lsSet("ppc_noLink", true); toast("No profile linked to this Google account yet"); setTimeout(()=>location.reload(), 700); } }
   catch(e){ console.warn(e); if(["auth/popup-blocked","auth/operation-not-supported-in-this-environment"].includes(e.code)){ try{ await mod.signInWithRedirect(a, prov); }catch(err){ toast("Could not open Google sign-in here. Try in Safari/Chrome."); } } else if(e.code!=="auth/popup-closed-by-user") toast("Could not sign in: "+(e.code||e.message)); }
 }
 /* Activity log: who changed what. Written by the app on every important action; readable by admins (all) and club admins (their club). */
@@ -1646,6 +1649,10 @@ function pastSeasonsCard(pid){
 
 /* ---------------- In-app guide: "How the app works" ---------------- */
 const helpSeen = ()=> !!lsGet("ppc_helpSeen", false);
+function linkNudge(){
+  const m=me(); if(isDemo || !m || isLinked() || S.tab!=="home") return ""; const until=+lsGet("ppc_linkNudgeUntil", 0)||0; if(Date.now()<until) return "";
+  return `<section class="card stack" style="gap:8px;border-color:var(--warn)"><div class="sec-head"><h3>Your profile lives only on this phone</h3><button class="icon-btn" data-act="snoozeLinkNudge" aria-label="Later">${ICONS.x}</button></div><div class="small">Connect your Google account once and you can sign in on any phone or computer — and nothing is lost if this phone breaks or the browser data is cleared.</div><div class="row"><button class="btn primary" data-act="linkGoogle" style="gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;flex:none" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/></svg> Connect Google account</button><button class="btn ghost" data-act="snoozeLinkNudge">Later</button></div></section>`;
+}
 function helpCard(){
   if(helpSeen() || S.tab!=="home") return "";
   return `<section class="card stack" style="border-color:var(--team-b);gap:8px"><div class="sec-head"><h3>New here?</h3><button class="icon-btn" data-act="dismissHelp" aria-label="Dismiss">${ICONS.x}</button></div>
@@ -1669,8 +1676,8 @@ function vHelp(){
     "Nothing to download from a store; updates arrive by themselves. Pull down or reopen the app if something looks old."]), !m)}
   ${helpSection("2 · Register, and keep your profile safe", [step([
     "Tap <b>Register</b>, add a photo, your name, date of birth and pick your club. Came through an invite link? The club is already set.",
-    `Your profile is tied to the phone you register on. Open your profile (photo top right) → <b>Link Google account</b>. Then on a new phone: open the app → <b>Restore</b> → same Google account, and everything is back.`,
-    "On iPhone the home-screen app has its own storage: register and link Google in Safari first, then tap <b>Restore</b> inside the home-screen app."]),
+    `Connect your Google account — best right when registering (<b>Continue with Google</b>), or later from your profile (photo top right → <b>Connect Google account</b>). Then on any phone or computer: open the app → <b>Sign in with Google</b> → same account, and your profile, history, balance and roles are back. Without that connection a profile exists only on the device it was created on.`,
+    "On iPhone the home-screen app has its own storage: register and connect Google in Safari first, then <b>Sign in with Google</b> inside the home-screen app."]),
     `<div class="tiny muted">Others see your age, not your date of birth. Only your club's admins can change your status.</div>`].join(""), !m)}
   ${helpSection("3 · The weekly session: vote, play, tick who played", [step([
     `The app creates the next session automatically${cfg&&cfg.enabled?` (${esc(teamShort(t))}: ${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)})`:""} and sends a “who's coming?” reminder on the club's vote day.`,
@@ -1928,6 +1935,7 @@ document.addEventListener("click", e => {
     rules: sheetRules,
     help: ()=>{ lsSet("ppc_helpSeen", true); if($("#sheetHost").children.length) closeSheet(); S._scroll=S._scroll||{}; S._scroll.help=0; S.tab="help"; render(); view.scrollTop=0; },
     dismissHelp: ()=>{ lsSet("ppc_helpSeen", true); render(); },
+    snoozeLinkNudge: ()=>{ lsSet("ppc_linkNudgeUntil", Date.now()+7*864e5); render(); },
     clubRules: sheetClubRules,
     geoTeam: ()=> geoLookup("cAddr","cfgMap","_geo"),
     geoSession: ()=> geoLookup("sAddr","sessMap","_geoS"),
@@ -2189,6 +2197,8 @@ async function boot(){
   sub("players", rows => S.players = rows);
   if(location.hash==="#sessions") S.tab="sessions";
   pickupInviteFromUrl(); setTimeout(loadPendingInvite, 1500);
+  if(lsGet("ppc_noLink", false)){ S._noLinkHint=true; lsSet("ppc_noLink", false); }
+  if(lsGet("ppc_restored", false)){ lsSet("ppc_restored", false); setTimeout(()=>{ if(me()) toast(`Welcome back, ${me().first}!`); }, 2500); }
   if(!isDemo && "Notification" in window && Notification.permission==="granted") setTimeout(()=>registerPush(false), 2000);
   setTimeout(()=>{ if(first){ first=false; render(); } }, 3000);
   let lastScroll=0; view.addEventListener("scroll", ()=>{ lastScroll=Date.now(); }, {passive:true});
