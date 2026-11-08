@@ -222,6 +222,14 @@ have an expiry and a use count. With "Open registration" off, registration is in
 - Rules are deployed by `.github/workflows/rules.yml` (firebase-tools with the `FIREBASE_SERVICE_ACCOUNT` secret) on every push
   that changes `firestore.rules` — no more pasting into the console.
 
+## Away mode
+
+- `players/{uid}.away = {from, to|null, note}` — set by the member (profile → *I'm away*) or a club admin (player sheet → *Set away*).
+- `isAway(p, date)`; on save every upcoming session inside the window gets `rsvps[uid]="no"` and `awayAuto[uid]=1`
+  (`applyAwayToSessions`); "I'm back" removes only those auto-votes. New sessions (client `ensureNextSessions` and the
+  reminder job) start with away members as "no". The reminder job skips away members' devices for the vote reminder;
+  payment requests still notify. Away members show a pill in Players / vote lists and an "Away: …" line on the session.
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered

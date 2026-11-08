@@ -589,7 +589,7 @@ function vHome(){
   let sessionCard="";
   if(m){ const s=S.sessions.filter(x=>x.team===m.team && x.date>=today && x.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date))[0];
     if(s){ const v=(s.rsvps||{})[uid]; const yes=Object.entries(s.rsvps||{}).filter(([,x])=>x==="yes").map(([k])=>byId(S.players,k)).filter(Boolean);
-      sessionCard=`<section class="card stack" style="border-color:var(--accent)"><div class="sec-head"><h3>${esc(teamShort(m.team))} plays ${esc(fmtDay(s.date))}</h3><button class="btn ghost sm" data-act="tab" data-tab="sessions">Details</button></div><div class="small muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</div>${votesOpen(s)||canManage(m.team)?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${v==="yes"}" data-val="yes">I'm in (${rsvpCount(s,"yes")})</button><button aria-pressed="${v==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${v==="no"}" data-val="no">Can't (${rsvpCount(s,"no")})</button></div>`:`<div class="small" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))} · ${v?`you voted “${v}”`:"you didn't vote"} · yes ${rsvpCount(s,"yes")}</div>`}${voteDeadline(s)&&votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:""}${yes.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}</span></div>`:""}</section>`; }
+      sessionCard=`<section class="card stack" style="border-color:var(--accent)"><div class="sec-head"><h3>${esc(teamShort(m.team))} plays ${esc(fmtDay(s.date))}</h3><button class="btn ghost sm" data-act="tab" data-tab="sessions">Details</button></div><div class="small muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"location tbc")}</div>${isAway(m,s.date)?`<div class="tiny" style="color:var(--warn)">You're away on this date — counted as Can't. Tap “I'm in” if you can make it after all.</div>`:""}${votesOpen(s)||canManage(m.team)?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${v==="yes"}" data-val="yes">I'm in (${rsvpCount(s,"yes")})</button><button aria-pressed="${v==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${v==="no"}" data-val="no">Can't (${rsvpCount(s,"no")})</button></div>`:`<div class="small" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))} · ${v?`you voted “${v}”`:"you didn't vote"} · yes ${rsvpCount(s,"yes")}</div>`}${voteDeadline(s)&&votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:""}${yes.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}</span></div>`:""}</section>`; }
     else { const cfg=teamCfg(m.team); sessionCard = cfg.enabled ? "" : `<section class="card stack"><h3>Your team</h3><div class="small muted">${esc(teamName(m.team))} hasn't set a regular session yet.</div><button class="btn sm" data-act="editTeamCfg" data-team="${m.team}">Set it up</button></section>`; } }
   // upcoming matches across events (mine first)
   const evOf = x => allEvents().find(e=>e.id===(x.eventId||"main"));
@@ -618,7 +618,7 @@ function vHome(){
       ${cfg.note?`<div class="tiny muted">${esc(cfg.note)}</div>`:""}</section>`; }
   else rulesCard=`<section class="card stack"><div class="sec-head"><h3>Rules</h3></div><button class="btn block" data-act="rules">Rules &amp; how we play</button></section>`;
   const evBlock = (m && m.sessionOnly) ? "" : (!m && !isAdmin() && !isDemo) ? `<section class="card stack"><h3>Events</h3><div class="small muted">Register with your club to see its events, sessions and costs.</div></section>` : eventsList();
-  return banner + requestsBanner() + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard + CREDIT;
+  return banner + awayBanner() + requestsBanner() + helpCard() + newMembersCard() + sessionCard + evBlock + matchesCard + moneyCard + rulesCard + CREDIT;
 }
 function projectFixtures(){
   if(S.event.format==="rotation"){
@@ -699,6 +699,7 @@ function sheetPlayer(id){
     <div class="stats"><div class="stat"><b>${s.w}</b><span>Won</span></div><div class="stat"><b>${s.l}</b><span>Lost</span></div><div class="stat"><b>${mine.length}</b><span>Matches</span></div></div>
     ${mine.length?`<div class="stack">${mine.map(matchCard).join("")}</div>`:""}
     ${hasPayInfo(p) && p.id!==uid && (myTeam()===p.team || isAdmin()) ? (()=>{ const tm=teamMoney(p.team); const owe=tm.transfers.find(x=>x.from===uid&&x.to===p.id); return `<div class="card stack" style="gap:6px"><div class="sec-head"><h3>Pay ${esc(p.first)}</h3>${owe?`<button class="btn sm primary" data-act="payTo" data-team="${p.team}" data-to="${p.id}" data-amt="${Math.round(owe.amt)}">Pay ${esc(money(Math.round(owe.amt)))}</button>`:""}</div><div class="small muted">${paypalHandle(p.paypal)?`PayPal: paypal.me/${esc(paypalHandle(p.paypal))}`:""}${paypalHandle(p.paypal)&&cleanIban(p.iban)?" · ":""}${cleanIban(p.iban)?`IBAN ${esc(fmtIban(p.iban))}`:""}</div></div>`; })() : ""}
+    ${p.away?`<div class="banner info" style="display:block"><b>${esc(awayLabel(p).replace(/^away/,"Away"))}</b>${p.away.from>todayISO()?` (from ${esc(fmtDate(p.away.from))})`:""}${p.away.note?` · ${esc(p.away.note)}`:""}</div>`:""}
     ${p.id===uid ? accountCard(true) : ""}
     ${p.guest?`<div class="small muted">Guest${p.sessionOnly?` for one session (${esc(fmtDay(byId(S.sessions,p.sessionOnly)?.date||""))})`:" of the club"}.</div>`:""}
     ${!isActive(p)?`<div class="banner" style="display:block"><b>Inactive</b>${p.deactivatedAt?` since ${esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10)))}`:""}. Sees only their own history and balance.</div>`:""}
@@ -706,7 +707,7 @@ function sheetPlayer(id){
       <label class="check"><input type="checkbox" data-act="toggleInvite" data-id="${id}" ${p.canInvite?"checked":""}> May invite other players</label>
       ${isAdmin()?`<label class="check"><input type="checkbox" data-act="toggleClubAdmin" data-id="${id}" ${p.role==="clubAdmin"?"checked":""}> Club admin of ${esc(teamName(p.team))} <span class="help">(adds / deactivates members, edits the club setup)</span></label>`:""}
       <div class="row">${p.guest?`<button class="btn sm" data-act="makeMember" data-id="${id}">Make a full member</button>`:""}${isActive(p)?`<button class="btn sm danger" data-act="deactivate" data-id="${id}">Set inactive</button>`:`<button class="btn sm primary" data-act="reactivate" data-id="${id}">Reactivate</button>`}</div></div>` : ""}
-  `, (p.id===uid || canManage(p.team)) ? `${p.id===uid?`<button class="btn ghost" data-act="help">Guide</button><button class="btn" data-act="tab" data-tab="history">My history</button>`:canManage(p.team)?`<button class="btn" data-act="statement" data-id="${id}">Statement</button>`:""}<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()&&p.id!==uid?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Delete</button>`:""}` : "");
+  `, (p.id===uid || canManage(p.team)) ? `${p.id===uid?`<button class="btn ghost" data-act="away">${p.away?"Away…":"I'm away"}</button><button class="btn" data-act="tab" data-tab="history">My history</button>`:canManage(p.team)?`<button class="btn ghost" data-act="away" data-id="${id}">${p.away?"Away…":"Set away"}</button>`+`<button class="btn" data-act="statement" data-id="${id}">Statement</button>`:""}<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()&&p.id!==uid?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Delete</button>`:""}` : "");
 }
 
 /* ---- Matches ---- */
@@ -1053,7 +1054,8 @@ async function ensureNextSessions(){
     const date=nextSessionDate(cfg), id=`${t}_${date}`;
     if(S.sessions.some(s=>s.id===id) || S._ensured?.[id]) continue;
     (S._ensured ||= {})[id]=1;
-    try{ await store.set("sessions", id, {team:t, date, start:cfg.start, end:cfg.end, location:cfg.location||"", address:cfg.address||"", lat:cfg.lat??null, lon:cfg.lon??null, note:"", rsvps:{}, attended:null, status:"open", auto:true, createdAt:Date.now(), createdBy:uid||null}); }catch(e){ console.warn(e); }
+    const aw=S.players.filter(p=>p.team===t && isActive(p) && isAway(p,date)); const rsvps=Object.fromEntries(aw.map(p=>[p.id,"no"])), awayAuto=Object.fromEntries(aw.map(p=>[p.id,1]));
+    try{ await store.set("sessions", id, {team:t, date, start:cfg.start, end:cfg.end, location:cfg.location||"", address:cfg.address||"", lat:cfg.lat??null, lon:cfg.lon??null, note:"", rsvps, awayAuto, attended:null, status:"open", auto:true, createdAt:Date.now(), createdBy:uid||null}); }catch(e){ console.warn(e); }
   }
 }
 function teamMoney(t){
@@ -1102,6 +1104,7 @@ function sessionCard(s, full){
   const t=s.team, member=canManageTeam(t), mine=(s.rsvps||{})[uid];
   const yes=Object.entries(s.rsvps||{}).filter(([,v])=>v==="yes").map(([k])=>byId(S.players,k)).filter(Boolean);
   const maybe=Object.entries(s.rsvps||{}).filter(([,v])=>v==="maybe").map(([k])=>byId(S.players,k)).filter(Boolean);
+  const awayPs=S.players.filter(p=>p.team===t && isActive(p) && isAway(p,s.date));
   const cost=S.expenses.filter(e=>e.sessionId===s.id&&e.type!=="payment").reduce((a,e)=>a+(+e.amount||0),0);
   const canVote = member && me();
   return `<section class="card stack" data-session="${s.id}">
@@ -1109,6 +1112,7 @@ function sessionCard(s, full){
     ${s.note?`<div class="small">${esc(s.note)}</div>`:""}
     ${canVote && (votesOpen(s)||canManage(t))?`<div class="seg" data-rsvp="${s.id}"><button aria-pressed="${mine==="yes"}" data-val="yes">Yes (${rsvpCount(s,"yes")})</button><button aria-pressed="${mine==="maybe"}" data-val="maybe">Maybe (${rsvpCount(s,"maybe")})</button><button aria-pressed="${mine==="no"}" data-val="no">No (${rsvpCount(s,"no")})</button></div>`
       :`<div class="row small muted"><span>Yes ${rsvpCount(s,"yes")}</span><span>Maybe ${rsvpCount(s,"maybe")}</span><span>No ${rsvpCount(s,"no")}</span></div>`}
+    ${awayPs.length?`<div class="tiny muted">Away: ${awayPs.map(p=>esc(p.first)).join(", ")}</div>`:""}
     ${voteDeadline(s)&&s.date>=todayISO()?(votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:`<div class="tiny" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))}${mine?` · you voted “${mine}”`:" · you didn't vote"}${canManage(t)?"":" · ask your club admin to change it"}</div>`):""}
     ${yes.length||maybe.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}${maybe.map(p=>`<span style="opacity:.45">${avatar(p,"sm")}</span>`).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}${maybe.length?` · maybe: ${maybe.map(p=>p.first).join(", ")}`:""}</span></div>`:`<div class="small muted">Nobody has voted yet.</div>`}
     ${full?`<div class="row spread small"><span class="muted">${Array.isArray(s.attended)?`${s.attended.length} played`:`${yes.length} coming`}${cost?` · cost ${esc(money(cost))}`:""}</span>${member?`<span class="row" style="gap:6px">${canManage(t)&&s.date>=todayISO()&&s.status!=="cancelled"?`<button class="btn sm" data-act="session" data-id="${s.id}" title="Enter votes for members who couldn't">Votes</button>`:""}<button class="btn sm" data-act="attendance" data-id="${s.id}">Who played</button><button class="btn sm" data-act="addTeamExpense" data-team="${t}" data-session="${s.id}">Add cost</button>${canEditTeam(t)?`<button class="icon-btn" data-act="editSession" data-id="${s.id}" aria-label="Edit session">${ICONS.edit}</button>`:""}</span>`:""}</div>`:""}
@@ -1120,7 +1124,7 @@ function sheetSession(id){
   const played=attendees(s).map(x=>byId(S.players,x)).filter(Boolean);
   openSheet(fmtDay(s.date), `<div class="stack">
     <div class="muted">${esc(s.start)}–${esc(s.end)} · ${esc(s.location||"")}${s.status==="cancelled"?' · <b>cancelled</b>':""}${voteDeadline(s)?` · votes ${votesOpen(s)?"close":"closed"} ${esc(fmtDL(voteDeadline(s)))}`:""}</div>
-    ${canManage(t) && s.date>=todayISO() && s.status!=="cancelled" ? (()=>{ const ms=S.players.filter(p=>p.team===t && isActive(p) && (!p.sessionOnly || p.sessionOnly===id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))); return `<div><h3>Votes</h3><div class="tiny muted" style="margin:4px 0 6px">As ${isAdmin()?"admin":"club admin"} you can enter a vote for anyone who couldn't do it themselves. Tap again to clear.</div><div class="stack" style="gap:6px">${ms.map(p=>{ const v=(s.rsvps||{})[p.id]; return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fullName(p))}${p.id===uid?" (you)":""}</span></span><div class="seg" data-rsvpfor="${p.id}" data-session="${id}" style="flex:none;padding:2px"><button aria-pressed="${v==="yes"}" data-val="yes" style="padding:6px 10px">Yes</button><button aria-pressed="${v==="maybe"}" data-val="maybe" style="padding:6px 10px">?</button><button aria-pressed="${v==="no"}" data-val="no" style="padding:6px 10px">No</button></div></div>`; }).join("")}</div></div>`; })() : ""}
+    ${canManage(t) && s.date>=todayISO() && s.status!=="cancelled" ? (()=>{ const ms=S.players.filter(p=>p.team===t && isActive(p) && (!p.sessionOnly || p.sessionOnly===id)).sort((a,b)=>fullName(a).localeCompare(fullName(b))); return `<div><h3>Votes</h3><div class="tiny muted" style="margin:4px 0 6px">As ${isAdmin()?"admin":"club admin"} you can enter a vote for anyone who couldn't do it themselves. Tap again to clear.</div><div class="stack" style="gap:6px">${ms.map(p=>{ const v=(s.rsvps||{})[p.id]; return `<div class="row spread" style="gap:8px"><span class="row" style="gap:8px;min-width:0">${avatar(p,"sm")}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fullName(p))}${p.id===uid?" (you)":""}${isAway(p,s.date)?' <span class="pill warn" style="display:inline-flex">away</span>':""}</span></span><div class="seg" data-rsvpfor="${p.id}" data-session="${id}" style="flex:none;padding:2px"><button aria-pressed="${v==="yes"}" data-val="yes" style="padding:6px 10px">Yes</button><button aria-pressed="${v==="maybe"}" data-val="maybe" style="padding:6px 10px">?</button><button aria-pressed="${v==="no"}" data-val="no" style="padding:6px 10px">No</button></div></div>`; }).join("")}</div></div>`; })() : ""}
     <div><h3>Played (${played.length})</h3><div class="row" style="gap:6px;margin-top:6px">${played.map(p=>avatar(p,"sm")).join("")||'<span class="small muted">No attendance recorded</span>'}</div></div>
     <div><h3>Costs</h3>${items.length?`<div class="list" style="margin-top:6px">${items.map(e=>`<button class="item" data-act="teamExpense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>paid by ${esc(fullName(byId(S.players,e.paidBy)))} · split ${(e.splitAmong||[]).length} ways</span></div><span class="amt">${esc(money(e.amount))}</span></button>`).join("")}</div>`:'<div class="small muted">No costs logged.</div>'}</div>
   </div>`, member?`<button class="btn" data-act="attendance" data-id="${id}">Who played</button><button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
@@ -1672,6 +1676,7 @@ function vHelp(){
     `The app creates the next session automatically${cfg&&cfg.enabled?` (${esc(teamShort(t))}: ${WEEKDAYS[cfg.weekday]}s ${esc(cfg.start)}–${esc(cfg.end)})`:""} and sends a “who's coming?” reminder on the club's vote day.`,
     `On Home or in Sessions tap <b>I'm in</b>, <b>Maybe</b> or <b>Can't</b>. Everyone sees who is coming, so the right number of courts gets booked.${cfg&&cfg.lockDay!=null&&cfg.lockDay!==""?` <b>Votes close ${WEEKDAYS[cfg.lockDay]} ${esc(cfg.lockTime||"14:00")}</b> — after that only a club admin can enter or change a vote.`:" Your club may set a deadline after which only a club admin can change votes."}`,
     "<b>Directions ↗</b> opens the hall in Maps.",
+    "Away for a while (holiday, injury, exams)? Profile → <b>I'm away</b> with the dates: you're counted as Can't for those sessions, get no reminders, and the club sees “away”. Tap <b>I'm back</b> when you return.",
     "After playing, anyone ticks <b>Who played?</b>. That list is what the court cost is split between — so tick it honestly."]),
     `<div class="tiny muted">Changed your mind? Tap your vote again to remove it, or pick another. Sessions → Reminders → <b>Enable notifications</b> once per phone.</div>`].join(""), true)}
   ${helpSection("4 · Money", mode==="monthly" ? [
@@ -1816,7 +1821,7 @@ function vPlayersClub(){
   const {playerStats}=standings();
   const ps=S.players.filter(p=>p.team===t && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   const inactive=S.players.filter(p=>p.team===t && !isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
-  const row=p=>{ const s=playerStats[p.id]; const a=age(p.dob); const j=isJoined(p.id); return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.role==="clubAdmin"?' <span class="pill A" style="display:inline-flex">club admin</span>':p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}</b><span>${a!=null?a+" yrs":""}${j?` · in ${esc(S.ev?.name||"event")}`:""}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; };
+  const row=p=>{ const s=playerStats[p.id]; const a=age(p.dob); const j=isJoined(p.id); return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.role==="clubAdmin"?' <span class="pill A" style="display:inline-flex">club admin</span>':p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}${isAway(p)?' <span class="pill warn" style="display:inline-flex">away</span>':""}</b><span>${a!=null?a+" yrs":""}${isAway(p)?` · ${esc(awayLabel(p))}`:""}${j?` · in ${esc(S.ev?.name||"event")}`:""}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; };
   if(S.filter==="stats") return `<div class="seg" data-seg="filter"><button class="${t}" aria-pressed="false" data-val="${t}">${esc(teamShort(t))}</button><button aria-pressed="true" data-val="stats">Stats</button></div>${playerStatsTable()}`;
   return `<div class="seg" data-seg="filter"><button class="${t}" aria-pressed="true" data-val="${t}">${esc(teamName(t))} (${ps.length})</button><button aria-pressed="false" data-val="stats">Stats</button></div>
     ${ps.length?`<div class="list">${ps.map(row).join("")}</div>`:`<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`}
@@ -1838,6 +1843,32 @@ function vClubAdmin(){
   <section class="card stack"><div class="sec-head"><h3>Reports</h3><button class="btn sm primary" data-act="openReport" data-team="${t}">Open club report</button></div><div class="small muted">Attendance, members, balances, spend and event results — with CSV export and printable statements.</div></section>
   <section class="card stack"><div class="sec-head"><h3>Activity log</h3><button class="btn sm" data-act="openAudit">Open</button></div><div class="small muted">${S.audit.length} entr${S.audit.length===1?"y":"ies"} for ${esc(teamName(t))}.</div></section>
   ${me()?accountCard(false):""}`;
+}
+
+/* ---------------- Away mode: long-term absence — auto "Can't" on sessions, no session reminders, visible to the club ---------------- */
+const isAway = (p, date) => { if(!p || !p.away || !p.away.from) return false; const d=date||todayISO(); return p.away.from<=d && (!p.away.to || p.away.to>=d); };
+const awayLabel = p => p?.away ? (p.away.to ? `away until ${fmtDate(p.away.to)}` : "away until further notice") : "";
+// Mark every upcoming session of the club inside the away window as "no" for this member.
+async function applyAwayToSessions(pid, away){
+  const p=byId(S.players,pid); if(!p) return 0; let n=0;
+  for(const s of S.sessions){ if(s.team!==p.team || s.date<todayISO() || s.status==="cancelled") continue;
+    const inWin = away && away.from<=s.date && (!away.to || away.to>=s.date); const cur=(s.rsvps||{})[pid];
+    if(inWin && cur!=="no"){ const rs={...(s.rsvps||{})}; rs[pid]="no"; const aa={...(s.awayAuto||{})}; aa[pid]=1; await store.update("sessions", s.id, {rsvps:rs, awayAuto:aa, updatedAt:Date.now()}); n++; }
+    else if(!inWin && cur==="no" && (s.awayAuto||{})[pid]){ const rs={...(s.rsvps||{})}; delete rs[pid]; const aa={...(s.awayAuto||{})}; delete aa[pid]; await store.update("sessions", s.id, {rsvps:rs, awayAuto:aa, updatedAt:Date.now()}); } }
+  return n;
+}
+function sheetAway(pid){
+  const p=byId(S.players,pid||uid); if(!p) return; const a=p.away||{}; const self=p.id===uid;
+  openSheet(self?"I'm away":`${p.first} is away`, `<form id="awayForm" class="stack"><p class="small muted" style="margin:0">${self?"While you're away you":"While away, "+esc(p.first)} count${self?"":"s"} as <b>Can't</b> for every session in that period, ${self?"get":"gets"} no session reminders, and the club sees “away”. Payment requests still arrive. ${self?"You can":"They can"} still vote Yes for a single session.</p>
+    <div class="row"><label class="f grow">From<input type="date" id="awFrom" required value="${esc(a.from||todayISO())}"></label><label class="f grow">Until (optional)<input type="date" id="awTo" value="${esc(a.to||"")}"></label></div>
+    <label class="f">Note for the club (optional)<input id="awNote" maxlength="80" value="${esc(a.note||"")}" placeholder="Travelling · injured · exams"></label></form>`,
+    `${p.away?`<button class="btn" data-act="clearAway" data-id="${p.id}" style="flex:0 0 auto">${self?"I'm back":"Back"}</button>`:""}<button class="btn primary" data-act="saveAway" data-id="${p.id}">Save</button>`);
+}
+function awayBanner(){
+  const m=me(); if(!m || !m.away) return "";
+  const now=isAway(m); const upcoming=!now && m.away.from>todayISO();
+  if(!now && !upcoming) return "";
+  return `<div class="banner" style="display:block;background:var(--surface-2,var(--surface));border:1px solid var(--line)"><div class="row spread" style="gap:8px"><span class="small"><b>${now?"You're marked away":"You'll be away from "+esc(fmtDate(m.away.from))}</b>${m.away.to?` until ${esc(fmtDate(m.away.to))}`:" until further notice"}${m.away.note?` · ${esc(m.away.note)}`:""}<br><span class="muted">Sessions in that time are set to “Can't”; no reminders.</span></span><span class="row" style="gap:6px;flex:none"><button class="btn ghost sm" data-act="away">Change</button><button class="btn sm" data-act="clearAway" data-id="${uid}">I'm back</button></span></div></div>`;
 }
 
 /* ---- Push notifications (FCM) ---- */
@@ -1935,6 +1966,10 @@ document.addEventListener("click", e => {
     savePayment: ()=> guard(async ()=>{ const f=$("#payForm"); if(!f.reportValidity()) return; const amt=Math.round(parseFloat($("#pAmount").value.replace(",","."))*100); const from=$("#pFrom").value, to=$("#pTo").value; const tre=teamMoney(b.dataset.team).fee?.treasurer; if(!(amt>0)||(from===to && to!==tre)){ toast("Check the amount and people"); return; }
       await store.set("expenses", store.newId(), {scope:"team", type:"payment", team:b.dataset.team, from, to, amount:amt, date:$("#pDate").value, title:"Payment", createdBy:uid||null, createdAt:Date.now()}); audit("payment", `${fullName(byId(S.players,from))} → ${to===tre?"club pot":fullName(byId(S.players,to))} ${money(amt)}`, {team:b.dataset.team}); closeSheet(); toast("Payment recorded"); }),
     payTo: ()=> sheetPay(b.dataset.team, b.dataset.to, +b.dataset.amt||0),
+    away: ()=> sheetAway(b.dataset.id||uid),
+    saveAway: ()=> guard(async ()=>{ const f=$("#awayForm"); if(!f.reportValidity()) return; const pid=b.dataset.id||uid; const p=byId(S.players,pid); if(!p || !(pid===uid || canManage(p.team))) return; const away={from:$("#awFrom").value, to:$("#awTo").value||null, note:$("#awNote").value.trim(), setAt:Date.now(), setBy:uid};
+      if(away.to && away.to<away.from){ toast("“Until” must be after “From”"); return; } await store.update("players", pid, {away, updatedAt:Date.now()}); const n=await applyAwayToSessions(pid, away); audit("member", `${fullName(p)} away ${away.from}${away.to?" – "+away.to:" (open)"}${away.note?" · "+away.note:""}`, {team:p.team}); closeSheet(); toast(`Away saved${n?` · ${n} session${n===1?"":"s"} set to Can't`:""}`); }),
+    clearAway: ()=> guard(async ()=>{ const pid=b.dataset.id||uid; const p=byId(S.players,pid); if(!p || !(pid===uid || canManage(p.team))) return; await store.update("players", pid, {away:null, updatedAt:Date.now()}); await applyAwayToSessions(pid, null); audit("member", `${fullName(p)} back from away`, {team:p.team}); closeSheet(); toast(pid===uid?"Welcome back!":`${p.first} is back`); }),
     requestMoney: ()=> sheetRequest(b.dataset.team||myTeam(), b.dataset.to||"", +b.dataset.amt||0, b.dataset.note||""),
     sendRequest: ()=> guard(()=>sendRequest(b.dataset.team||myTeam())),
     payRequest: ()=>{ const r=byId(S.requests,id); if(r) sheetPay(r.team, r.from, r.amount, r.id); },

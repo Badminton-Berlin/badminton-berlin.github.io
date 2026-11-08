@@ -34,6 +34,7 @@ const tokens = (await db.collection("pushTokens").get()).docs.map(d => ({ uid: d
 let sent = 0;
 const adminUids = (await db.doc("settings/admins").get()).data()?.uids || [];
 const tokenOf = uid => tokens.find(x => x.uid === uid && x.token)?.token;
+const isAway = (p, date) => !!(p && p.away && p.away.from && p.away.from <= date && (!p.away.to || p.away.to >= date));
 
 // ---- 1. New-member alerts ----
 const fresh = Object.entries(players).filter(([id, p]) => !p.joinNotified && !p.manual && (p.createdAt || 0) > Date.now() - 14 * 864e5);
@@ -90,13 +91,15 @@ for (const t of ["A","B"]) {
   const date = nextSessionDate(cfg), id = `${t}_${date}`, ref = db.doc(`sessions/${id}`);
   let snap = await ref.get();
   if (!snap.exists) {
-    await ref.set({ team:t, date, start:cfg.start||"08:30", end:cfg.end||"09:30", location:cfg.location||"", address:cfg.address||"", note:"", rsvps:{}, attended:null, status:"open", auto:true, createdAt:Date.now(), createdBy:"reminder-job" });
+    const awayIds = Object.entries(players).filter(([, q]) => q.team === t && q.active !== false && isAway(q, date)).map(([qid]) => qid);
+    await ref.set({ team:t, date, start:cfg.start||"08:30", end:cfg.end||"09:30", location:cfg.location||"", address:cfg.address||"", note:"", rsvps:Object.fromEntries(awayIds.map(u => [u, "no"])), awayAuto:Object.fromEntries(awayIds.map(u => [u, 1])), attended:null, status:"open", auto:true, createdAt:Date.now(), createdBy:"reminder-job" });
     snap = await ref.get(); console.log(t, "created session", id);
   }
   const s = snap.data();
   if (s.status === "cancelled") { console.log(t, "session cancelled – skip"); continue; }
   if (s.notifiedAt && !FORCE) { console.log(t, "already notified – skip"); continue; }
-  const teamTokens = tokens.filter(x => players[x.uid]?.team === t && x.token).map(x => x.token);
+  // members marked away for the session date get no reminder
+  const teamTokens = tokens.filter(x => players[x.uid]?.team === t && x.token && !isAway(players[x.uid], date)).map(x => x.token);
   if (!teamTokens.length) { console.log(t, "no devices with notifications on"); continue; }
   const dayName = new Date(date + "T12:00:00").toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"short" });
   const title = `${teamName(t)}: who's playing ${dayName}?`;
