@@ -700,6 +700,7 @@ function sheetPlayer(id){
     ${mine.length?`<div class="stack">${mine.map(matchCard).join("")}</div>`:""}
     ${hasPayInfo(p) && p.id!==uid && (myTeam()===p.team || isAdmin()) ? (()=>{ const tm=teamMoney(p.team); const owe=tm.transfers.find(x=>x.from===uid&&x.to===p.id); return `<div class="card stack" style="gap:6px"><div class="sec-head"><h3>Pay ${esc(p.first)}</h3>${owe?`<button class="btn sm primary" data-act="payTo" data-team="${p.team}" data-to="${p.id}" data-amt="${Math.round(owe.amt)}">Pay ${esc(money(Math.round(owe.amt)))}</button>`:""}</div><div class="small muted">${paypalHandle(p.paypal)?`PayPal: paypal.me/${esc(paypalHandle(p.paypal))}`:""}${paypalHandle(p.paypal)&&cleanIban(p.iban)?" · ":""}${cleanIban(p.iban)?`IBAN ${esc(fmtIban(p.iban))}`:""}</div></div>`; })() : ""}
     ${p.away?`<div class="banner info" style="display:block"><b>${esc(awayLabel(p).replace(/^away/,"Away"))}</b>${p.away.from>todayISO()?` (from ${esc(fmtDate(p.away.from))})`:""}${p.away.note?` · ${esc(p.away.note)}`:""}</div>`:""}
+    ${p.id===uid ? `<div class="card stack" style="gap:6px"><div class="sec-head"><h3>Your payment details</h3><button class="btn ghost sm" data-act="editPlayer" data-id="${id}">Edit</button></div>${hasPayInfo(p)?`<div class="small">${paypalHandle(p.paypal)?`PayPal: <b>paypal.me/${esc(paypalHandle(p.paypal))}</b>`:""}${paypalHandle(p.paypal)&&cleanIban(p.iban)?"<br>":""}${cleanIban(p.iban)?`IBAN: <b>${esc(fmtIban(p.iban))}</b>${p.ibanName?` (${esc(p.ibanName)})`:""}`:""}</div><div class="tiny muted">Shown to club-mates who owe you money, with a Pay button.</div>`:`<div class="small muted">None yet — add your PayPal.me name or IBAN so team-mates can pay you back in one tap.</div>`}</div>` : ""}
     ${p.id===uid ? accountCard(true) : ""}
     ${p.guest?`<div class="small muted">Guest${p.sessionOnly?` for one session (${esc(fmtDay(byId(S.sessions,p.sessionOnly)?.date||""))})`:" of the club"}.</div>`:""}
     ${!isActive(p)?`<div class="banner" style="display:block"><b>Inactive</b>${p.deactivatedAt?` since ${esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10)))}`:""}. Sees only their own history and balance.</div>`:""}
@@ -2022,7 +2023,7 @@ document.addEventListener("click", e => {
       const existing = id ? byId(S.players,id) : null;
       const ibanV=cleanIban($("#pIban")?.value||""); if(ibanV && !/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(ibanV)){ toast("That IBAN doesn't look right"); return; }
       const data = {first, last, dob, photo:S._photo||"", team:S._team||"A", paypal:paypalHandle($("#pPaypal")?.value||""), iban:ibanV, ibanName:($("#pIbanName")?.value||"").trim(), updatedAt:Date.now()};
-      if(existing){ await store.update("players", id, data); toast("Profile saved"); }
+      if(existing){ await store.update("players", id, data); toast("Profile saved"+((data.paypal||data.iban)?" · payment details stored":"")); }
       else {
         const newId = S._adminAdd ? store.newId() : uid;
         const inv = (!S._adminAdd && S.pendingInvite && !S.pendingInvite.missing && inviteValid(S.pendingInvite)) ? S.pendingInvite : null;
