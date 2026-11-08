@@ -343,8 +343,9 @@ async function makeFirebaseStore(){
   uid = cred.uid; S.fbAuth = {mod:auth, a};
   // Completes a Google link / sign-in that went through the redirect flow (popup not possible).
   auth.getRedirectResult(a).then(r=>{ if(r && r.user){ toast("Google account connected"); if(r.user.uid!==uid) location.reload(); } }).catch(e=>console.warn("redirect", e.code));
-  const db = fs.getFirestore(app);
-  try { fs.enableIndexedDbPersistence && await fs.enableIndexedDbPersistence(db); } catch(e){}
+  // Memory cache only: the app is live-synced anyway, and browser storage (IndexedDB) is unreliable on some phones
+  // (Brave/Safari private tabs abort transactions → "Failed to persist write").
+  let db; try { db = fs.initializeFirestore(app, { localCache: fs.memoryLocalCache(), experimentalAutoDetectLongPolling: true }); } catch(e){ db = fs.getFirestore(app); }
   const strip = d => JSON.parse(JSON.stringify(d));
   return {
     subscribe(c, fn, filter){
