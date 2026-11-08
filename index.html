@@ -511,7 +511,7 @@ function renderTabs(){
 function render(){
   window.refreshScopedSubs?.();
   $("#hdrTitle").textContent = S.event.appName || "Badminton";
-  const mt=myTeam(); const clubLogoSrc = mt && !isAdmin() ? clubLogo(mt) : ""; const hl=$("#hdrLogo"); if(hl){ if(!hl.dataset.def) hl.dataset.def=hl.src; const want=clubLogoSrc||hl.dataset.def; if(hl.src!==want) hl.src=want; } $("#hdrEyebrow").textContent = mt ? `${teamName(mt)}${isAdmin()?" · admin":isClubAdmin(mt)?" · club admin":amInactive()?" · inactive":""}` : `${S.event.teamA} · ${S.event.teamB}`;
+  const mt=myTeam(); const clubLogoSrc = mt ? clubLogo(mt) : ""; const hl=$("#hdrLogo"); if(hl){ if(!hl.dataset.def) hl.dataset.def=hl.src; const want=clubLogoSrc||hl.dataset.def; if(hl.src!==want) hl.src=want; } $("#hdrEyebrow").textContent = mt ? `${teamName(mt)}${isAdmin()&&isClubAdmin(mt)?" · super admin · club admin":isAdmin()?" · super admin":isClubAdmin(mt)?" · club admin":amInactive()?" · inactive":""}` : `${S.event.teamA} · ${S.event.teamB}`;
   const m = me(); $("#meBtn").innerHTML = m ? avatar(m,"sm") : `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
   renderTabs();
   if(S.tab==="admin" && !isAdmin() && !isClubAdmin(myTeam())) S.tab="home";
@@ -712,7 +712,7 @@ function sheetPlayer(id){
     ${!isActive(p)?`<div class="banner" style="display:block"><b>Inactive</b>${p.deactivatedAt?` since ${esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10)))}`:""}. Sees only their own history and balance.</div>`:""}
     ${canManage(p.team) && p.id!==uid ? `<div class="card stack" style="gap:8px"><h3>Manage</h3>
       <label class="check"><input type="checkbox" data-act="toggleInvite" data-id="${id}" ${p.canInvite?"checked":""}> May invite other players</label>
-      ${isAdmin()?`<label class="check"><input type="checkbox" data-act="toggleClubAdmin" data-id="${id}" ${p.role==="clubAdmin"?"checked":""}> Club admin of ${esc(teamName(p.team))} <span class="help">(adds / deactivates members, edits the club setup)</span></label>`:""}
+      ${isAdmin()?`<label class="check"><input type="checkbox" data-act="toggleClubAdmin" data-id="${id}" ${p.role==="clubAdmin"?"checked":""}> Club admin of ${esc(teamName(p.team))}${(S.admins?.uids||[]).includes(p.id)?" (also super admin)":""} <span class="help">(adds / deactivates members, edits the club setup)</span></label>`:""}
       <div class="row">${p.guest?`<button class="btn sm" data-act="makeMember" data-id="${id}">Make a full member</button>`:""}${isActive(p)?`<button class="btn sm danger" data-act="deactivate" data-id="${id}">Set inactive</button>`:`<button class="btn sm primary" data-act="reactivate" data-id="${id}">Reactivate</button>`}</div></div>` : ""}
   `, (p.id===uid || canManage(p.team)) ? `${p.id===uid?`<button class="btn ghost" data-act="away">${p.away?"Away…":"I'm away"}</button><button class="btn" data-act="tab" data-tab="history">My history</button>`:canManage(p.team)?`<button class="btn ghost" data-act="away" data-id="${id}">${p.away?"Away…":"Set away"}</button>`+`<button class="btn" data-act="statement" data-id="${id}">Statement</button>`:""}<button class="btn" data-act="editPlayer" data-id="${id}">Edit profile</button>${isAdmin()&&p.id!==uid?`<button class="btn danger" data-act="delPlayer" data-id="${id}">Delete</button>`:""}` : "");
 }
@@ -866,12 +866,13 @@ function vAdminGlobalSections(){
   <section class="card stack"><div class="sec-head"><h3>Backup</h3><button class="btn sm" data-act="backup">Download JSON</button></div><div class="small muted">Everything — players, events, matches, costs, sessions, settings — as one file. Keep a copy now and then.</div></section>
   ${me()?accountCard(false):""}
   <section class="card stack">
-    <h3>Admins</h3>
-    ${isDemo?`<div class="small muted">In demo mode the “Admin view” switch at the top stands in for admin rights. Once connected to Firebase, the first person to open the app claims admin, then adds others here.</div>`:`
+    <div class="sec-head"><h3>Super admins</h3><span class="pill">${(S.admins?.uids||[]).length}</span></div>
+    <div class="small muted">Super admins run the whole app: all clubs, shared events, seasons, backups. A super admin is also an ordinary member of their own club and can be its club admin at the same time. Club admins (set per member under Players) run one club.</div>
+    ${isDemo?`<div class="small muted">In demo mode the “Admin view” switch at the top stands in for super-admin rights. Once connected to Firebase, the first person to open the app claims it, then adds others here.</div>`:`
     <div class="small">Your ID: <code class="uid">${esc(uid||"")}</code></div>
-    <div class="stack" style="gap:6px">${(S.admins?.uids||[]).map(u=>{const p=byId(S.players,u); return `<div class="row spread small"><span>${p?esc(fullName(p)):"Unregistered device"} <code class="uid">${esc(u.slice(0,8))}…</code></span>${u!==uid?`<button class="btn sm danger" data-act="rmAdmin" data-id="${u}">Remove</button>`:`<span class="pill">you</span>`}</div>`;}).join("")}</div>
-    <label class="f">Make a registered player admin<select id="newAdmin"><option value="">Choose…</option>${S.players.filter(p=>!(S.admins?.uids||[]).includes(p.id) && !p.manual).map(p=>`<option value="${p.id}">${esc(fullName(p))}</option>`).join("")}</select></label>
-    <button class="btn" data-act="addAdmin">Add admin</button>`}
+    <div class="stack" style="gap:6px">${(S.admins?.uids||[]).map(u=>{const p=byId(S.players,u); return `<div class="row spread small"><span>${p?esc(fullName(p)):"Unregistered device"}${p?.role==="clubAdmin"?` <span class="tiny muted">· club admin ${esc(teamShort(p.team))}</span>`:""} <code class="uid">${esc(u.slice(0,8))}…</code></span>${u!==uid?`<button class="btn sm danger" data-act="rmAdmin" data-id="${u}">Remove</button>`:`<span class="pill">you</span>`}</div>`;}).join("")}</div>
+    <label class="f">Make a member super admin<select id="newAdmin"><option value="">Choose…</option>${S.players.filter(p=>!(S.admins?.uids||[]).includes(p.id) && !p.manual).map(p=>`<option value="${p.id}">${esc(fullName(p))}</option>`).join("")}</select></label>
+    <button class="btn" data-act="addAdmin">Add super admin</button>`}
   </section>
   ${isDemo?`<section class="card stack"><h3>Demo data</h3><div class="row"><button class="btn" data-act="seed">Load sample players</button><button class="btn danger" data-act="resetDemo">Reset everything</button></div></section>`:""}`;
 }
@@ -1740,7 +1741,7 @@ function vHelp(){
     "<b>Member</b>: votes, ticks attendance, adds costs and payments for their club, enters scores if allowed, sees club events and everyone's player stats.",
     "<b>Guest</b>: same as a member for the sessions they are invited to; a one-session guest only sees that session. Guests pay no monthly fee.",
     "<b>Club admin</b> (★): adds and deactivates members of their club, edits the club setup (day, place, rules, money mode), invites people, sees the club report and activity log, and organises the club's own events (Manage tab: pairs, schedule, scores, costs). A club can have several club admins.",
-    "<b>Admin</b>: everything, for both clubs — events, pairs, schedule, challenge costs, seasons, backups.",
+    "<b>Super admin</b>: everything, across all clubs — clubs, shared events, seasons, backups, and appointing other super admins and club admins. A super admin is also a normal member of their own club and may be its club admin at the same time.",
     "<b>Inactive</b>: set by a club admin when someone leaves; they keep their own history and balance but see no club activity until reactivated."]))}
   ${helpSection("8 · Notifications", li([
     "Sessions → Reminders → <b>Enable notifications</b>. You get the “who's coming?” vote reminder on your club's vote day.",
