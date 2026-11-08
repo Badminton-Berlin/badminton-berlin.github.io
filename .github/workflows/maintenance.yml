@@ -1,0 +1,21 @@
+name: Database maintenance
+on:
+  push:
+    branches: [main]
+    paths: ["ops/*.json"]
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-save firebase-admin@13
+      - name: Apply changed ops files
+        run: |
+          files=$(git diff --name-only HEAD~1 HEAD -- 'ops/*.json' | tr '\n' ' ')
+          echo "files: $files"
+          [ -n "$files" ] && node scripts/maintenance.mjs $files || echo "nothing to apply"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
