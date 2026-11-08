@@ -27,7 +27,9 @@ function nextSessionDate(cfg){
 
 const REMINDER_HOUR = +(process.env.REMINDER_HOUR || 7); // Berlin wall-clock hour for the weekly reminder
 const event = (await db.doc("settings/event").get()).data() || {};
-const teamName = t => t === "A" ? (event.teamA || "Team A") : (event.teamB || "Team B");
+const clubs = Object.fromEntries((await db.collection("clubs").get()).docs.map(d => [d.id, d.data()]));
+const teamName = t => clubs[t]?.name || (t === "A" ? (event.teamA || "Team A") : t === "B" ? (event.teamB || "Team B") : t);
+const clubIds = Object.keys(clubs).length ? Object.keys(clubs) : ["A", "B"];
 const players = Object.fromEntries((await db.collection("players").get()).docs.map(d => [d.id, d.data()]));
 const tokens = (await db.collection("pushTokens").get()).docs.map(d => ({ uid: d.id, ...d.data() }));
 
@@ -83,7 +85,7 @@ for (const d of paidReqs) {
 // ---- 2. Weekly session reminder: on each club's vote day, once, any run at or after REMINDER_HOUR Berlin time ----
 // (GitHub runs scheduled jobs late or skips some, so "at or after" rather than "exactly at" the hour.)
 if (!FORCE && now.getHours() < REMINDER_HOUR) { console.log(`reminder: before the reminder hour (${now.getHours()}:00 Berlin) – done`); console.log("notifications sent:", sent); process.exit(0); }
-for (const t of ["A","B"]) {
+for (const t of clubIds) {
   const cfg = (await db.doc(`teams/${t}`).get()).data();
   if (!cfg || !cfg.enabled) { console.log(t, "no regular session"); continue; }
   const voteDay = cfg.voteDay ?? 5;

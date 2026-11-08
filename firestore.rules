@@ -43,6 +43,8 @@ service cloud.firestore {
     function clubsShare(a, b) {
       return a == b || (exists(sharingDoc()) && ((a + b) in get(sharingDoc()).data || (b + a) in get(sharingDoc()).data));
     }
+    // A club id is valid when it is one of the two founding clubs or a document in the clubs collection.
+    function validClub(t) { return t is string && (t in ["A", "B"] || exists(/databases/$(db)/documents/clubs/$(t))); }
     function inviteDoc(code) { return /databases/$(db)/documents/invites/$(code); }
     // A registration with an invite code is allowed when the code exists, is for that club, hasn't expired and has uses left.
     function validInvite(d) {
@@ -54,7 +56,7 @@ service cloud.firestore {
     function validPlayer(d) {
       return d.first is string && d.first.size() > 0 && d.first.size() <= 40
         && d.last is string && d.last.size() <= 40
-        && d.team in ["A", "B"]
+        && validClub(d.team)
         && (!("dob" in d) || d.dob is string)
         && (!("photo" in d) || (d.photo is string && d.photo.size() <= 90000))
         && (!("paypal" in d) || (d.paypal is string && d.paypal.size() <= 60))
@@ -181,7 +183,7 @@ service cloud.firestore {
       allow create: if (isAdmin() || isClubAdmin(request.resource.data.team)
                         || (isActiveMember() && ("canInvite" in meDoc()) && meDoc().canInvite == true && request.resource.data.team == myTeam()))
                     && request.resource.data.createdBy == request.auth.uid
-                    && request.resource.data.team in ["A", "B"]
+                    && validClub(request.resource.data.team)
                     && request.resource.data.kind in ["member", "guest", "session"]
                     && request.resource.data.maxUses is int && request.resource.data.maxUses >= 1 && request.resource.data.maxUses <= 50
                     && request.resource.data.used == [];
@@ -194,7 +196,7 @@ service cloud.firestore {
 
     // Activity log: every signed-in member appends entries about their own actions; admins read all, club admins their club's.
     match /audit/{id} {
-      allow read: if isAdmin() || (resource.data.team in ["A", "B"] && isClubAdmin(resource.data.team));
+      allow read: if isAdmin() || (resource.data.team is string && isClubAdmin(resource.data.team));
       allow create: if signedIn() && request.resource.data.by == request.auth.uid
                     && request.resource.data.action is string && request.resource.data.action.size() <= 30
                     && request.resource.data.detail is string && request.resource.data.detail.size() <= 300;
@@ -211,7 +213,7 @@ service cloud.firestore {
     // the payer can mark it paid/declined, the requester can cancel or re-notify.
     match /requests/{id} {
       allow read: if isAdmin() || (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid))
-                  || (resource.data.team in ["A", "B"] && isClubAdmin(resource.data.team));
+                  || (resource.data.team is string && isClubAdmin(resource.data.team));
       allow create: if isActiveMember() && request.resource.data.from == request.auth.uid && request.resource.data.team == myTeam()
                     && request.resource.data.to is string && request.resource.data.to != request.auth.uid
                     && request.resource.data.amount is int && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
@@ -224,6 +226,13 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "notifyPending", "remindedAt", "cancelledAt", "updatedAt"])
             && request.resource.data.status in ["open", "cancelled"]);
       allow delete: if isAdmin() || (signedIn() && resource.data.from == request.auth.uid);
+    }
+
+    // Clubs: everyone signed in reads the list; admins manage it.
+    match /clubs/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() && request.resource.data.name is string && request.resource.data.short is string;
+      allow delete: if isAdmin();
     }
 
     // Push notification tokens: each device writes its own; only admins (and the reminder job) read them.

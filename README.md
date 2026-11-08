@@ -230,6 +230,20 @@ have an expiry and a use count. With "Open registration" off, registration is in
   reminder job) start with away members as "no". The reminder job skips away members' devices for the vote reminder;
   payment requests still notify. Away members show a pill in Players / vote lists and an "Away: …" line on the session.
 
+## Clubs (any number)
+
+- `clubs/{id}` `{name, short, color, order, logo}`; `A` and `B` are the founding clubs (seeded from settings by the first
+  admin load, names kept in sync). `CLUBS()`, `clubById`, `teamName/teamShort` read the list; every club chooser
+  (registration, Players, Sessions, Money, Reports, Activity log, invites, event clubs) iterates it.
+- Admin → **Clubs** → *Add club* (name, 2–4 letter code → id, colour). A new club's organiser registers via an invite link
+  for that club and is made club admin; they then set up sessions, hall, rules, money mode.
+- Events: one club (within-club) or two clubs (team against team). Sides "A"/"B" of an event are its first/second club
+  (`sideClub`, `sideShort`); pairs/matches stay stored by side. `S.event.teamA/shortA…` are computed per event.
+- Within-club events: fixed pairs → `buildRoundRobin` (every pair plays every pair); rotation → `buildIntraRotation`
+  (four players per match, fewest-played first, partner/opponent repeats minimised, equal counts when 4·M divides by n).
+  Pairs table replaces team standings; the head-to-head grid is pairs × pairs.
+- Rules: `validClub(t)` (A, B or an existing clubs doc) replaces the hard-coded pair; `clubs` readable by all, written by admins.
+
 ## Guides
 
 `docs/player-guide.pdf` and `docs/admin-guide.pdf` (sources: the .html files next to them, rendered
