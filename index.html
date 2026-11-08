@@ -335,7 +335,9 @@ async function makeFirebaseStore(){
     import(base+"firebase-app.js"), import(base+"firebase-auth.js"), import(base+"firebase-firestore.js")
   ]);
   const app = initializeApp(FIREBASE_CONFIG); S.fbApp = app;
-  const a = auth.getAuth(app);
+  // Keep the sign-in in localStorage first: IndexedDB is unreliable on some phones (Brave/Safari private tabs), and a lost
+  // sign-in would make a registered member look like a new device on every visit.
+  let a; try { a = auth.initializeAuth(app, { persistence: [auth.browserLocalPersistence, auth.indexedDBLocalPersistence, auth.inMemoryPersistence], popupRedirectResolver: auth.browserPopupRedirectResolver }); } catch(e){ a = auth.getAuth(app); }
   await auth.setPersistence(a, auth.browserLocalPersistence).catch(()=>{});
   const cred = await new Promise((res, rej)=>{
     const off = auth.onAuthStateChanged(a, u => { if(u){ off(); res(u); } else auth.signInAnonymously(a).catch(rej); }, rej);
