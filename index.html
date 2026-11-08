@@ -315,7 +315,7 @@ function makeDemoStore(){
   const save = ()=> lsSet(KEY, data);
   const notify = c => (subs[c]||[]).forEach(fn => fn());
   return {
-    subscribe(c, fn, filter){ const sel=()=> Object.entries(data[c]).map(([id,d])=>({id,...d})).filter(r=> !filter ? true : filter.id ? r.id===filter.id : filter.op==="array-contains" ? (Array.isArray(r[filter.field]) && r[filter.field].includes(filter.value)) : r[filter.field]===filter.value); const h=()=>fn(sel()); (subs[c] ||= []).push(h); h(); return ()=>{ subs[c]=subs[c].filter(f=>f!==h); }; },
+    subscribe(c, fn, filter){ const sel=()=> Object.entries(data[c]).map(([id,d])=>({id,...d})).filter(r=> !filter ? true : filter.id ? r.id===filter.id : filter.op==="array-contains" ? (Array.isArray(r[filter.field]) && r[filter.field].includes(filter.value)) : filter.op==="in" ? (filter.value||[]).includes(r[filter.field]) : r[filter.field]===filter.value); const h=()=>fn(sel()); (subs[c] ||= []).push(h); h(); return ()=>{ subs[c]=subs[c].filter(f=>f!==h); }; },
     async set(c,id,d){ data[c][id] = JSON.parse(JSON.stringify(d)); save(); notify(c); },
     async get(c,id){ return data[c][id] ? JSON.parse(JSON.stringify(data[c][id])) : null; },
     async getAll(c){ return Object.entries(data[c]||{}).map(([id,d])=>({id,...JSON.parse(JSON.stringify(d))})); },
@@ -1666,6 +1666,12 @@ function linkNudge(){
   const m=me(); if(isDemo || !m || isLinked() || S.tab!=="home") return ""; const until=+lsGet("ppc_linkNudgeUntil", 0)||0; if(Date.now()<until) return "";
   return `<section class="card stack" style="gap:8px;border-color:var(--warn)"><div class="sec-head"><h3>Your profile lives only on this phone</h3><button class="icon-btn" data-act="snoozeLinkNudge" aria-label="Later">${ICONS.x}</button></div><div class="small">Connect your Google account once and you can sign in on any phone or computer — and nothing is lost if this phone breaks or the browser data is cleared.</div><div class="row"><button class="btn primary" data-act="linkGoogle" style="gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;flex:none" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/></svg> Connect Google account</button><button class="btn ghost" data-act="snoozeLinkNudge">Later</button></div></section>`;
 }
+// settings/sharing = {"AB": true, …} for every pair of clubs that share an event; the security rules read it.
+function syncSharing(){
+  if(!isAdmin() || !store) return; const want={}; for(const ev of S.events){ const cs=[...new Set(evClubs(ev))].sort(); for(let i=0;i<cs.length;i++) for(let j=i+1;j<cs.length;j++) want[cs[i]+cs[j]]=true; }
+  const cur=S.sharingDoc||{}; const same=Object.keys(want).length===Object.keys(cur).length && Object.keys(want).every(k=>cur[k]===true);
+  if(!same){ store.set("settings","sharing", want).catch(e=>console.warn("sharing", e.code||e)); }
+}
 function helpCard(){
   if(helpSeen() || S.tab!=="home") return "";
   return `<section class="card stack" style="border-color:var(--team-b);gap:8px"><div class="sec-head"><h3>New here?</h3><button class="icon-btn" data-act="dismissHelp" aria-label="Dismiss">${ICONS.x}</button></div>
@@ -2174,8 +2180,12 @@ async function boot(){
   // The Firestore rules only allow exactly these queries, so a member never receives another club's data.
   window.refreshScopedSubs = function(){
     const inactive = amInactive(); const t = inactive ? null : myTeam(), adm=isAdmin(); const key1=JSON.stringify([t,adm,canInvite(),inactive]);
+    // Clubs whose members I may see: my own, plus any club that shares an event with mine (the challenge).
+    const visible = adm ? null : t ? [...new Set([t, ...S.events.flatMap(ev=>evClubs(ev))])].sort() : (myTeam() ? [myTeam()] : false);
+    const keyP=JSON.stringify([adm, visible]);
+    if(S._scopeP!==keyP){ S._scopeP=keyP; resub("players","players", adm ? null : visible ? {field:"team", op:"in", value:visible} : false, rows=>{ S.scopedData.players=rows; window.mergePlayers?.(); }); if(adm) syncSharing(); }
     if(S._scope1!==key1){ S._scope1=key1;
-      resub("events","events", adm ? null : t ? {field:"clubs", op:"array-contains", value:t} : false, rows=>{ S.events=rows; recomputeEvent(); setTimeout(migrateEvents, 800); });
+      resub("events","events", adm ? null : t ? {field:"clubs", op:"array-contains", value:t} : false, rows=>{ S.events=rows; recomputeEvent(); setTimeout(migrateEvents, 800); if(isAdmin()) syncSharing(); });
       resub("sessions","sessions", adm ? null : t ? {field:"team", op:"==", value:t} : false, rows=>{ S.sessions=rows; setTimeout(ensureNextSessions, 500); });
       resub("teams","teams", adm ? null : t ? {id:t} : false, rows=>{ S.teams=rows; setTimeout(ensureNextSessions, 500); });
       resub("invites","invites", adm ? null : (t && canInvite()) ? {field:"createdBy", op:"==", value:uid} : false, rows=>{ S.invites=rows; });
@@ -2209,8 +2219,12 @@ async function boot(){
       if(!ids.length){ S.allPairs=[]; S.allMatches=[]; S.allRegs=[]; S.scopedData.eventExpenses=[]; S.expenses=[...S.scopedData.teamExpenses]; recomputeEvent(); }
     }
   };
-  sub("settings", rows => { const ev=rows.find(r=>r.id==="event"); S.settingsEvent = ev ? (({id,...r})=>r)(ev) : null; S.admins = rows.find(r=>r.id==="admins")||null; S.adminsLoaded=true; recomputeEvent(); });
-  sub("players", rows => S.players = rows);
+  sub("settings", rows => { const ev=rows.find(r=>r.id==="event"); S.settingsEvent = ev ? (({id,...r})=>r)(ev) : null; S.admins = rows.find(r=>r.id==="admins")||null; const sh=rows.find(r=>r.id==="sharing"); S.sharingDoc = sh ? (({id,...r})=>r)(sh) : {}; S.adminsLoaded=true; recomputeEvent(); });
+  // Own profile first (needed to know the club), then the club's members — see refreshScopedSubs.
+  S.scopedData.me=[]; S.scopedData.players=[];
+  const mergePlayers=()=>{ const seen=new Set(); S.players=[...S.scopedData.me, ...S.scopedData.players].filter(p=>!seen.has(p.id)&&seen.add(p.id)); };
+  window.mergePlayers=mergePlayers;
+  if(uid) resub("me","players",{id:uid}, rows=>{ S.scopedData.me=rows; mergePlayers(); ready.me=true; }); else { S.players=[]; ready.me=true; }
   if(location.hash==="#sessions") S.tab="sessions";
   pickupInviteFromUrl(); setTimeout(loadPendingInvite, 1500);
   if(lsGet("ppc_noLink", false)){ S._noLinkHint=true; lsSet("ppc_noLink", false); }

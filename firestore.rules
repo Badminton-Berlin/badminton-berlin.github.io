@@ -37,6 +37,12 @@ service cloud.firestore {
     function signupOpen(eventId) {
       return exists(evDoc(eventId)) && (!("regOpen" in get(evDoc(eventId)).data) || get(evDoc(eventId)).data.regOpen != false);
     }
+    // settings/sharing = {"AB": true} for each pair of clubs that currently share an event (kept up to date by the admin app).
+    // Members may read another club's players only while such an event exists.
+    function sharingDoc() { return /databases/$(db)/documents/settings/sharing; }
+    function clubsShare(a, b) {
+      return a == b || (exists(sharingDoc()) && ((a + b) in get(sharingDoc()).data || (b + a) in get(sharingDoc()).data));
+    }
     function inviteDoc(code) { return /databases/$(db)/documents/invites/$(code); }
     // A registration with an invite code is allowed when the code exists, is for that club, hasn't expired and has uses left.
     function validInvite(d) {
@@ -61,8 +67,11 @@ service cloud.firestore {
       allow read: if signedIn();
     }
 
-    // Event settings: admins write.
+    // Event settings and the club-sharing map: admins write.
     match /settings/event {
+      allow write: if isAdmin();
+    }
+    match /settings/sharing {
       allow write: if isAdmin();
     }
 
@@ -73,8 +82,10 @@ service cloud.firestore {
     }
 
     // Players: each device registers itself (doc id == its uid) while registration is open; admins manage everyone.
+    // Reading members: your own profile always; your club's members; another club's members only while the clubs share an event.
     match /players/{pid} {
-      allow read: if signedIn();
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == pid)
+                  || (isMember() && clubsShare(myTeam(), resource.data.team));
       allow create: if signedIn() && validPlayer(request.resource.data)
                     && ((request.auth.uid == pid && (registrationOpen() || validInvite(request.resource.data)))
                         || isAdmin() || isClubAdmin(request.resource.data.team))
