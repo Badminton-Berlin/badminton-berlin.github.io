@@ -1138,7 +1138,7 @@ function sheetTeamCfg(t){
     <div class="row"><label class="f grow">From<input type="time" id="cStart" value="${esc(c.start||"08:30")}"></label><label class="f grow">To<input type="time" id="cEnd" value="${esc(c.end||"09:30")}"></label></div>
     <label class="f">Where<input id="cLoc" value="${esc(c.location||"")}" placeholder="Sporthalle Spandau, court 2"></label>
     <label class="f">Address<input id="cAddr" value="${esc(c.address||"")}" placeholder="Askanierring 150, 13585 Berlin"></label>
-    <div class="row"><button type="button" class="btn sm" data-act="geoTeam">Find on map</button><span class="tiny muted" id="cfgMapLabel">${c.lat!=null?"Pin set — drag to adjust":"Shows a map and gives players a directions link"}</span></div>
+    <div class="row"><button type="button" class="btn sm" data-act="geoTeam">Find on map</button><span class="tiny muted" id="cfgMapLabel">${realPin(c)?"Pin set — drag to adjust":"Optional: shows a small map. Directions always use the address above."}</span></div>
     <div class="map" id="cfgMap"></div>
     <div class="row"><label class="f grow">Votes close<select id="cLockDay"><option value="">No deadline</option>${WEEKDAYS.map((d,i)=>`<option value="${i}" ${c.lockDay!=null&&c.lockDay!==""&&+c.lockDay===i?"selected":""}>${d}</option>`).join("")}</select></label><label class="f grow">at<input type="time" id="cLockTime" value="${esc(c.lockTime||"14:00")}"></label></div>
     <div class="tiny muted" style="margin-top:-6px">After the deadline members can't change their vote; club admins can still enter votes for them.</div>
@@ -1150,7 +1150,7 @@ function sheetTeamCfg(t){
     <label class="f">Team rules (shown on Home)<textarea id="cRules" placeholder="Court €24 booked by whoever is first; everyone who plays splits it. Nylon shuttles. Cancel by Saturday 20:00.">${esc(c.rules||"")}</textarea></label>
     <label class="f">Note for players<textarea id="cNote" placeholder="Bring €5 for the court, nylon shuttles provided.">${esc(c.note||"")}</textarea></label>
   </form>`, `<button class="btn primary" data-act="saveTeamCfg" data-team="${t}">Save</button>`);
-  if(c.lat!=null) setTimeout(()=>showMap("cfgMap", c.lat, c.lon, {interactive:true, onMove:(la,lo)=>{ S._geo={lat:la, lon:lo}; }}), 50);
+  if(realPin(c)) setTimeout(()=>showMap("cfgMap", c.lat, c.lon, {interactive:true, onMove:(la,lo)=>{ S._geo={lat:la, lon:lo}; }}), 50);
 }
 function sheetEditSession(id, team){
   const cfg0 = team ? teamCfg(team) : null;
@@ -1161,7 +1161,7 @@ function sheetEditSession(id, team){
     <div class="row"><label class="f grow">From<input type="time" id="sStart" value="${esc(s.start)}"></label><label class="f grow">To<input type="time" id="sEnd" value="${esc(s.end)}"></label></div>
     <label class="f">Where<input id="sLoc" value="${esc(s.location||"")}"></label>
     <label class="f">Address<input id="sAddr" value="${esc(s.address||"")}"></label>
-    <div class="row"><button type="button" class="btn sm" data-act="geoSession">Find on map</button><span class="tiny muted" id="sessMapLabel">${s.lat!=null?"Pin set":""}</span></div>
+    <div class="row"><button type="button" class="btn sm" data-act="geoSession">Find on map</button><span class="tiny muted" id="sessMapLabel">${realPin(s)?"Pin set":""}</span></div>
     <div class="map" id="sessMap"></div>
     <label class="f">Votes close (this session only)<input type="datetime-local" id="sLock" value="${s.lockAt?esc(new Date(s.lockAt - new Date(s.lockAt).getTimezoneOffset()*60000).toISOString().slice(0,16)):""}"><span class="help">${(()=>{ const dl=id?voteDeadline({...s, lockAt:null}):null; return dl?`Club rule: ${esc(fmtDL(dl))}. Leave empty to use it.`:"Leave empty for the club rule (or no deadline)."; })()}</span></label>
     <label class="f">Note<textarea id="sNote">${esc(s.note||"")}</textarea></label>
