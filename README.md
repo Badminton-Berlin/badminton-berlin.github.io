@@ -219,6 +219,13 @@ have an expiry and a use count. With "Open registration" off, registration is in
   Re-send on purpose: Actions → *Broadcast push* → *Run workflow* with the file name (delete the `broadcasts/<name>`
   doc first, or use a new file name).
 
+## Club admins card (Admin tab)
+
+- Admin → **Club admins**: per club, the current club admins (✕ revokes) and a picker *Make a member club admin…* → **Add**
+  (`players/{id}.role = "clubAdmin"`). Same effect as the switch in a member's sheet (Players → name → Manage). Manual
+  (admin-added, device-less) members and guests are not offered. Club admin is the role to hand out for day-to-day club work;
+  super admin only for the few who run the whole app.
+
 ## Payment requests
 
 - `requests/{id}` `{team, from, to, amount, note, status open|paid|declined|cancelled, notifyPending, paidNotify, createdAt…}`.
