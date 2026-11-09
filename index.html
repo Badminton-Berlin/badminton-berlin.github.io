@@ -582,7 +582,7 @@ function vInactiveHome(){
 function newMembersCard(){
   if(!(isAdmin() || isClubAdmin(myTeam()))) return "";
   const since = +lsGet("ppc_seenJoin", 0); const t = isAdmin() ? null : myTeam();
-  const fresh = S.players.filter(p=> (p.createdAt||0) > since && (!t || p.team===t) && p.id!==uid && !p.manual).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const fresh = S.players.filter(p=> (p.createdAt||0) > since && (!t || p.team===t) && p.id!==uid && !p.manual && isActive(p)).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(!fresh.length) return "";
   return `<section class="card stack" style="border-color:var(--team-b)"><div class="sec-head"><h3>New members (${fresh.length})</h3><button class="btn ghost sm" data-act="seenJoin">Mark seen</button></div><div class="list">${fresh.slice(0,6).map(p=>`<button class="item" data-act="player" data-id="${p.id}">${avatar(p,"sm")}<div class="t"><b>${esc(fullName(p))}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}</b><span>joined ${esc(teamName(p.team))} · ${esc(fmtDate(new Date(p.createdAt||Date.now()).toISOString().slice(0,10)))}</span></div></button>`).join("")}</div><div class="tiny muted">Tap a name to set invite rights, deactivate or remove. ${isAdmin()||isClubAdmin(myTeam())?"Push notifications about new members arrive hourly when enabled.":""}</div></section>`;
 }
