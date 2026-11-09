@@ -211,6 +211,14 @@ have an expiry and a use count. With "Open registration" off, registration is in
   Members see *you're in* + **Can't make it** / *you're out* + **I'm in after all**; organisers see a "Not coming" line with undo.
   Set under Event → Edit → *Participation* (also when creating an event).
 
+## Broadcast push (e.g. "update the app")
+
+- Add `broadcast/<name>.json` `{ "title", "body", "link"?, "clubs"?: ["A"], "includeInactive"?: false }` and push to `main`:
+  `.github/workflows/broadcast.yml` runs `scripts/broadcast.mjs`, which sends it to every registered device of active
+  members (optionally one club only) and records `broadcasts/<name>` in Firestore so a file is never sent twice.
+  Re-send on purpose: Actions → *Broadcast push* → *Run workflow* with the file name (delete the `broadcasts/<name>`
+  doc first, or use a new file name).
+
 ## Payment requests
 
 - `requests/{id}` `{team, from, to, amount, note, status open|paid|declined|cancelled, notifyPending, paidNotify, createdAt…}`.

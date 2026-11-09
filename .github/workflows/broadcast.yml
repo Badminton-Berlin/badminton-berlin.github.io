@@ -1,0 +1,26 @@
+name: Broadcast push
+on:
+  push:
+    branches: [main]
+    paths: ["broadcast/*.json"]
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "broadcast/<name>.json to (re)send"
+        required: true
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-save firebase-admin@13
+      - name: Send
+        run: |
+          if [ -n "${{ github.event.inputs.file }}" ]; then files="${{ github.event.inputs.file }}"; else files=$(git diff --name-only HEAD~1 HEAD -- 'broadcast/*.json' | tr '\n' ' '); fi
+          echo "files: $files"
+          [ -n "$files" ] && node scripts/broadcast.mjs $files || echo "nothing to send"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
