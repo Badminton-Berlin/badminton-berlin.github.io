@@ -238,6 +238,13 @@ have an expiry and a use count. With "Open registration" off, registration is in
   yes-voters / who played), courts (default `teams/{t}.courts`, club setup → *Courts booked*), rounds, **Generate / Shuffle
   again**, **Save for everyone** → `sessions/{id}.games = {players, courts, rounds_data, at, by}` (any active member of the club;
   audited). Everyone opens it read-only; *Remove saved games* clears it.
+- **Game scores**: once saved, every game row has a **Score** button (any active club member): one game, two numbers, no draws
+  → `sessions/{id}.games.gameScores["r<round>g<game>"] = {a, b, by, at}` written with a dot-path update so parallel entries on
+  different courts never overwrite each other. Winners are highlighted; a **Today's table** (W / L / point difference) builds
+  under the rounds; the Home card shows "n scored". Scores are kept when re-saving the same draw and dropped on a new draw.
+- **Store semantics changed**: `store.update` now uses `updateDoc` (a map value replaces the stored map; `"a.b"` keys set one
+  nested field) with a merge-set fallback for missing docs. Before, it was a merge-set, which silently kept keys that the app
+  had removed (e.g. a cleared vote or a dismissed change request stayed in Firestore). The demo store mirrors this.
 
 ## Payment requests
 
