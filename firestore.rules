@@ -190,8 +190,10 @@ service cloud.firestore {
     match /sessions/{id} {
       allow read: if isAdmin() || (isActiveMember() && resource.data.team == myTeam());
       allow create: if isAdmin() || (isActiveMember() && request.resource.data.team == myTeam());
+      // "Who played" (attended) is fixed by admins / club admins only; members change just their own vote.
       allow update: if isAdmin() || (isActiveMember() && request.resource.data.team == myTeam() && resource.data.team == myTeam()
-                                     && (isClubAdmin(myTeam()) || !teamVoteFinal(myTeam()) || finalVotesKept()));
+                                     && (isClubAdmin(myTeam()) || (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["attended"])
+                                                                   && (!teamVoteFinal(myTeam()) || finalVotesKept()))));
       allow delete: if isAdmin();
     }
 

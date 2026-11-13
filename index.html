@@ -1164,7 +1164,7 @@ function sessionCard(s, full){
     ${awayPs.length?`<div class="tiny muted">Away: ${awayPs.map(p=>esc(p.first)).join(", ")}</div>`:""}
     ${voteDeadline(s)&&sessionOpen(s)?(votesOpen(s)?`<div class="tiny" style="color:var(--warn)">Vote by ${esc(fmtDL(voteDeadline(s)))}</div>`:`<div class="tiny" style="color:var(--bad)">Votes closed ${esc(fmtDL(voteDeadline(s)))}${mine?` · you voted “${mine}”`:" · you didn't vote"}${canManage(t)?"":" · ask your club admin to change it"}</div>`):""}
     ${yes.length||maybe.length?`<div class="row" style="gap:6px">${yes.map(p=>avatar(p,"sm")).join("")}${maybe.map(p=>`<span style="opacity:.45">${avatar(p,"sm")}</span>`).join("")}<span class="small muted">${yes.map(p=>p.first).join(", ")}${maybe.length?` · maybe: ${maybe.map(p=>p.first).join(", ")}`:""}</span></div>`:`<div class="small muted">Nobody has voted yet.</div>`}
-    ${full?`<div class="row spread small"><span class="muted">${Array.isArray(s.attended)?`${s.attended.length} played`:`${yes.length} coming`}${cost?` · cost ${esc(money(cost))}`:""}</span>${member?`<span class="row" style="gap:6px">${canManage(t)&&s.date>=todayISO()&&s.status!=="cancelled"?`<button class="btn sm" data-act="session" data-id="${s.id}" title="Enter votes for members who couldn't">Votes</button>`:""}<button class="btn sm" data-act="attendance" data-id="${s.id}">Who played</button><button class="btn sm" data-act="addTeamExpense" data-team="${t}" data-session="${s.id}">Add cost</button>${canEditTeam(t)?`<button class="icon-btn" data-act="editSession" data-id="${s.id}" aria-label="Edit session">${ICONS.edit}</button>`:""}</span>`:""}</div>`:""}
+    ${full?`<div class="row spread small"><span class="muted">${Array.isArray(s.attended)?`${s.attended.length} played`:`${yes.length} coming`}${cost?` · cost ${esc(money(cost))}`:""}</span>${member?`<span class="row" style="gap:6px">${canManage(t)&&s.date>=todayISO()&&s.status!=="cancelled"?`<button class="btn sm" data-act="session" data-id="${s.id}" title="Enter votes for members who couldn't">Votes</button>`:""}${canManage(t)?`<button class="btn sm" data-act="attendance" data-id="${s.id}">Who played</button>`:""}<button class="btn sm" data-act="addTeamExpense" data-team="${t}" data-session="${s.id}">Add cost</button>${canEditTeam(t)?`<button class="icon-btn" data-act="editSession" data-id="${s.id}" aria-label="Edit session">${ICONS.edit}</button>`:""}</span>`:""}</div>`:""}
   </section>`;
 }
 function sheetSession(id){
@@ -1177,7 +1177,7 @@ function sheetSession(id){
     <div><h3>Played (${played.length})</h3><div class="row" style="gap:6px;margin-top:6px">${played.map(p=>avatar(p,"sm")).join("")||'<span class="small muted">No attendance recorded</span>'}</div></div>
     <div><h3>Costs</h3>${items.length?`<div class="list" style="margin-top:6px">${items.map(e=>`<button class="item" data-act="teamExpense" data-id="${e.id}"><div class="t"><b>${esc(e.title)}</b><span>paid by ${esc(fullName(byId(S.players,e.paidBy)))} · split ${(e.splitAmong||[]).length} ways</span></div><span class="amt">${esc(money(e.amount))}</span></button>`).join("")}</div>`:'<div class="small muted">No costs logged.</div>'}</div>
     ${s.games?.rounds_data?.length?`<div><h3>Games</h3><div class="small muted" style="margin-top:4px">${s.games.rounds_data.length} rounds on ${s.games.courts} court${s.games.courts===1?"":"s"} for ${(s.games.players||[]).length} players — tap <b>Games</b> to see the rotation.</div></div>`:""}
-  </div>`, member?`<button class="btn" data-act="games" data-id="${id}">Games</button><button class="btn" data-act="attendance" data-id="${id}">Who played</button><button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
+  </div>`, member?`<button class="btn" data-act="games" data-id="${id}">Games</button>${canManage(t)?`<button class="btn" data-act="attendance" data-id="${id}">Who played</button>`:""}<button class="btn primary" data-act="addTeamExpense" data-team="${t}" data-session="${id}">Add cost</button>`:"");
 }
 
 /* ---------------- Session games: rotation schedule for a club session (who's there × courts → rounds) ---------------- */
@@ -1295,7 +1295,7 @@ function sheetEditSession(id, team){
   if(realPin(s)) setTimeout(()=>showMap("sessMap", s.lat, s.lon, {interactive:true, onMove:(la,lo)=>{ S._geoS={lat:la, lon:lo}; }}), 50);
 }
 function sheetAttendance(id){
-  const s=byId(S.sessions,id); if(!s) return;
+  const s=byId(S.sessions,id); if(!s || !canManage(s.team)) return; // only organisers / club admins; members change just their own vote
   const members=S.players.filter(p=>p.team===s.team && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   const cur=new Set(attendees(s));
   openSheet("Who played?", `<div class="stack"><p class="small muted" style="margin:0">Tick everyone who actually played on ${esc(fmtDay(s.date))}. Costs for this session are split between them.</p>
@@ -1827,7 +1827,7 @@ function vHelp(){
     `On Home or in Sessions tap <b>I'm in</b>, <b>Maybe</b> or <b>Can't</b>. Everyone sees who is coming, so the right number of courts gets booked.${t?` <b>Your club's policy:</b> ${esc(policyLine(t))}`:" Each club picks its own policy: either you must say “I'm in”, or everyone is in by default and says “Can't” in time."}${cfg&&cfg.lockDay!=null&&cfg.lockDay!==""?` After <b>${WEEKDAYS[cfg.lockDay]} ${esc(cfg.lockTime||"14:00")}</b> only a club admin can enter or change a vote.`:""}`,
     "<b>Directions ↗</b> opens the hall in Maps.",
     "Away for a while (holiday, injury, exams)? Profile → <b>I'm away</b> with the dates: you're counted as Can't for those sessions, get no reminders, and the club sees “away”. Tap <b>I'm back</b> when you return.",
-    "After playing, anyone ticks <b>Who played?</b>. That list is what the court cost is split between — so tick it honestly."]),
+    "After playing, a club admin ticks <b>Who played?</b>. That list is what the court cost is split between. Members only change their own vote."]),
     `<div class="tiny muted">${t&&voteFinal(t)?"In your club a vote is final: tap another option and a change request goes to the club admins, who update it for you.":"Changed your mind? Tap your vote again to remove it, or pick another."} Sessions → Reminders → <b>Enable notifications</b> once per phone.</div>`,
     `<div><b>Games on the day</b>: open the session (Home card → <b>Games</b> / <b>Make the games</b>) — tick who is actually there, set courts and rounds, <b>Generate</b>. The app rotates partners and opponents so everyone plays the same number of games; extra players sit out in turn. <b>Shuffle again</b> for a new draw, <b>Save for everyone</b> so the whole club sees the rounds live. After each game tap <b>Score</b> on its row — the winners light up and <b>Today's table</b> (wins, losses, point difference) builds up as you go.</div>`].join(""), true)}
   ${helpSection("4 · Money", mode==="monthly" ? [
@@ -2236,7 +2236,7 @@ document.addEventListener("click", e => {
       closeSheet(); toast("Session saved"); }),
     delSession: ()=> confirmSheet("Delete session", "Delete this session? Costs tied to it stay in the team money list.", "Delete", ()=>guard(async ()=>{ await store.remove("sessions", id); closeSheet(); })),
     attendance: ()=> sheetAttendance(id),
-    saveAttendance: ()=> guard(async ()=>{ const ids=[...document.querySelectorAll("#sheetHost .att:checked")].map(i=>i.value); await store.update("sessions", id, {attended:ids, updatedAt:Date.now()}); const ss=byId(S.sessions,id); audit("attendance", `${fmtDay(ss?.date)}: ${ids.length} played`, {team:ss?.team}); closeSheet(); toast(`${ids.length} marked as played`); }),
+    saveAttendance: ()=> guard(async ()=>{ if(!canManage(byId(S.sessions,id)?.team)) return toast("Only club admins can change who played"); const ids=[...document.querySelectorAll("#sheetHost .att:checked")].map(i=>i.value); await store.update("sessions", id, {attended:ids, updatedAt:Date.now()}); const ss=byId(S.sessions,id); audit("attendance", `${fmtDay(ss?.date)}: ${ids.length} played`, {team:ss?.team}); closeSheet(); toast(`${ids.length} marked as played`); }),
     addTeamExpense: ()=> sheetTeamExpense(null, b.dataset.team, b.dataset.session||""),
     teamExpense: ()=> { const e=byId(S.expenses,id); if(e && canManageTeam(e.team)) sheetTeamExpense(id); },
     splitAll: ()=> document.querySelectorAll("#splitChips .chip").forEach(c=>c.setAttribute("aria-pressed","true")),
