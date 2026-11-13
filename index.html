@@ -60,6 +60,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 header.top .logo{width:44px;height:44px;border-radius:10px;flex:none}
 header.top .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
 main{flex:1;overflow-y:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(90px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+main>*{flex-shrink:0}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:var(--surface);border-top:1px solid var(--line);padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
 nav.tabs button{flex:1;background:none;border:0;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:11px;font-weight:600;border-radius:10px;min-width:0}
 nav.tabs button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -664,15 +665,17 @@ function standingsTable(){
 }
 
 /* ---- Players ---- */
+const playerSearch = n => n>8 ? `<input type="search" id="playerQ" placeholder="Search ${n} players…" value="${esc(S.playerQ||"")}" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:inherit;font:inherit">` : "";
 function vPlayers(){
   if(!isAdmin()) return vPlayersClub();
+  const q=(S.playerQ||"").trim().toLowerCase(); const match=p=>!q || fullName(p).toLowerCase().includes(q);
   const {playerStats} = standings();
   const list = (t)=>{
-    const ps = S.players.filter(p=>p.team===t && isActive(p)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
-    const inactive = S.players.filter(p=>p.team===t && !isActive(p)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    const all = S.players.filter(p=>p.team===t && isActive(p)); const ps = all.filter(match).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    const inactive = S.players.filter(p=>p.team===t && !isActive(p) && match(p)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
     const inactiveBlock = (canManage(t) && inactive.length) ? `<div class="sec-head" style="margin-top:12px"><h3>Inactive (${inactive.length})</h3></div><div class="list">${inactive.map(p=>`<button class="item" data-act="player" data-id="${p.id}" style="opacity:.7">${avatar(p)}<div class="t"><b>${esc(fullName(p))}</b><span>inactive${p.deactivatedAt?" since "+esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10))):""}</span></div></button>`).join("")}</div>` : "";
-    if(!ps.length) return `<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>` + inactiveBlock;
-    return `<div class="list">${ps.map(p=>{ const s=playerStats[p.id]; const pr=S.pairs.find(x=>(x.players||[]).includes(p.id)); const a=age(p.dob);
+    if(!ps.length) return playerSearch(all.length) + (q?`<div class="empty"><b>No match</b>Nobody in ${esc(teamName(t))} matches “${esc(S.playerQ)}”.</div>`:`<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`) + inactiveBlock;
+    return playerSearch(all.length) + `<div class="list">${ps.map(p=>{ const s=playerStats[p.id]; const pr=S.pairs.find(x=>(x.players||[]).includes(p.id)); const a=age(p.dob);
       return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.role==="clubAdmin"?' <span class="pill A" style="display:inline-flex">club admin</span>':p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}</b><span>${a!=null?a+" yrs":""}${S.event.format==="rotation" ? ` · ${S.matches.filter(m=>[m.pairA,m.pairB].some(id=>(byId(S.allPairs,id)?.players||[]).includes(p.id))).length} matches` : pr?` · with ${esc(pairPlayers(pr).filter(x=>x.id!==p.id).map(x=>x.first).join(", ")||"—")}`:" · unpaired"}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; }).join("")}</div>` + inactiveBlock;
   };
   const cur = CLUB_IDS().includes(S.filter) ? S.filter : (myTeam() && CLUB_IDS().includes(myTeam()) ? myTeam() : CLUB_IDS()[0]);
@@ -1978,12 +1981,13 @@ function participantsCard(){
 function vPlayersClub(){
   const t=myTeam(); if(!t) return `<div class="empty"><b>Register first</b>Your club's members appear here once you're registered.</div><button class="btn primary block" data-act="register">Register yourself</button>`;
   const {playerStats}=standings();
-  const ps=S.players.filter(p=>p.team===t && isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
-  const inactive=S.players.filter(p=>p.team===t && !isActive(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const q=(S.playerQ||"").trim().toLowerCase(); const match=p=>!q || fullName(p).toLowerCase().includes(q);
+  const all=S.players.filter(p=>p.team===t && isActive(p)); const ps=all.filter(match).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  const inactive=S.players.filter(p=>p.team===t && !isActive(p) && match(p)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
   const row=p=>{ const s=playerStats[p.id]; const a=age(p.dob); const j=isJoined(p.id); return `<button class="item" data-act="player" data-id="${p.id}">${avatar(p)}<div class="t"><b>${esc(fullName(p))}${p.id===uid?' <span class="pill" style="display:inline-flex">you</span>':""}${p.guest?' <span class="pill warn" style="display:inline-flex">guest</span>':""}${p.role==="clubAdmin"?' <span class="pill A" style="display:inline-flex">club admin</span>':p.canInvite?' <span class="pill good" style="display:inline-flex">can invite</span>':""}${isAway(p)?' <span class="pill warn" style="display:inline-flex">away</span>':""}</b><span>${a!=null?a+" yrs":""}${isAway(p)?` · ${esc(awayLabel(p))}`:""}${j?` · in ${esc(S.ev?.name||"event")}`:""}</span></div>${s?`<span class="num muted">${s.w}–${s.l}</span>`:""}</button>`; };
   if(S.filter==="stats") return `<div class="seg" data-seg="filter">${clubBtn(t,false,esc(teamShort(t)))}<button aria-pressed="true" data-val="stats">Stats</button></div>${playerStatsTable()}`;
   return `<div class="seg" data-seg="filter">${clubBtn(t,true,`${esc(teamName(t))} (${ps.length})`)}<button aria-pressed="false" data-val="stats">Stats</button></div>
-    ${ps.length?`<div class="list">${ps.map(row).join("")}</div>`:`<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`}
+    ${playerSearch(all.length)}${ps.length?`<div class="list">${ps.map(row).join("")}</div>`:q?`<div class="empty"><b>No match</b>Nobody matches “${esc(S.playerQ)}”.</div>`:`<div class="empty"><b>No one yet</b>Share the link so ${esc(teamName(t))} can register.</div>`}
     ${canManage(t)&&inactive.length?`<div class="sec-head" style="margin-top:12px"><h3>Inactive (${inactive.length})</h3></div><div class="list">${inactive.map(p=>`<button class="item" data-act="player" data-id="${p.id}" style="opacity:.7">${avatar(p)}<div class="t"><b>${esc(fullName(p))}</b><span>inactive${p.deactivatedAt?" since "+esc(fmtDate(new Date(p.deactivatedAt).toISOString().slice(0,10))):""}</span></div></button>`).join("")}</div>`:""}
     <div class="tiny muted">Players of other clubs appear on the event screens (who's playing, pairs, matches, grid) of shared events.</div>
     ${canInvite() ? `<button class="btn block" data-act="invite">Invite someone</button>` : ""}
@@ -2399,6 +2403,8 @@ document.addEventListener("click", e => {
   };
   A[act]?.();
 });
+// Players search: filter the list as you type, keeping the caret in the box.
+document.addEventListener("input", e => { if(e.target.id!=="playerQ") return; S.playerQ=e.target.value; clearTimeout(S._pqT); S._pqT=setTimeout(()=>{ const pos=e.target.selectionStart; render(); const q=$("#playerQ"); if(q){ q.focus(); try{ q.setSelectionRange(pos,pos); }catch(_){} } }, 150); });
 document.addEventListener("change", async e => {
   if(e.target.id==="clubLogoInput" && e.target.files[0]){ try{ S._clubLogo = await shrinkPhoto(e.target.files[0], 256, 60000); $("#clubLogoPreview").innerHTML=`<img class="avatar lg" style="border-radius:14px" src="${S._clubLogo}" alt="">`; }catch(err){ toast("Couldn't read that image"); } }
   if(e.target.id==="evLogoInput" && e.target.files[0]){ try{ S._evLogo = await shrinkPhoto(e.target.files[0], 480, 110000); $("#evLogoPreview").innerHTML=`<img class="avatar lg" style="border-radius:14px" src="${S._evLogo}" alt="">`; }catch(err){ toast("Couldn't read that image"); } }
