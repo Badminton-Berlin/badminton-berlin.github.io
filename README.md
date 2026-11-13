@@ -226,6 +226,19 @@ have an expiry and a use count. With "Open registration" off, registration is in
   (admin-added, device-less) members and guests are not offered. Club admin is the role to hand out for day-to-day club work;
   super admin only for the few who run the whole app.
 
+## Final votes with change requests; session games generator
+
+- **Final votes** `teams/{t}.voteLock = "once"` (club setup → *Changing a vote*): a member who has voted can't change it;
+  tapping another option opens "Change your vote" → `sessions/{id}.changeReq[uid] = {v, note, at}`. Club admins see the
+  count on Home and the list in the session sheet (**Apply** sets the vote and clears the request, **Dismiss** clears it);
+  entering a vote for that member in the Votes list also clears it. Members can withdraw. Shown in club rules and Help.
+- **Games** (session sheet → **Games**; Home card → *Games* / *Make the games* on the day): `buildSessionRounds(ids, courts,
+  rounds)` — each round takes the players with the fewest games (sit-outs first), pairs them with the fewest partner repeats,
+  groups pairs with the fewest opponent repeats; extra players sit out in turn. Sheet: tick who's here (defaults to the
+  yes-voters / who played), courts (default `teams/{t}.courts`, club setup → *Courts booked*), rounds, **Generate / Shuffle
+  again**, **Save for everyone** → `sessions/{id}.games = {players, courts, rounds_data, at, by}` (any active member of the club;
+  audited). Everyone opens it read-only; *Remove saved games* clears it.
+
 ## Payment requests
 
 - `requests/{id}` `{team, from, to, amount, note, status open|paid|declined|cancelled, notifyPending, paidNotify, createdAt…}`.
