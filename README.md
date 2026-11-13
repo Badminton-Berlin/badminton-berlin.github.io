@@ -237,7 +237,10 @@ have an expiry and a use count. With "Open registration" off, registration is in
   groups pairs with the fewest opponent repeats; extra players sit out in turn. Sheet: tick who's here (defaults to the
   yes-voters / who played), courts (default `teams/{t}.courts`, club setup → *Courts booked*), rounds, **Generate / Shuffle
   again**, **Save for everyone** → `sessions/{id}.games = {players, courts, rounds_data, at, by}` (any active member of the club;
-  audited). Everyone opens it read-only; *Remove saved games* clears it.
+  audited). Everyone opens it read-only; *Remove saved games* clears it. Doubles courts = min(courts, ⌊players/4⌋); with
+  **Use a spare court for singles** (default on) a court the doubles can't fill hosts a singles game for two of the players who
+  would otherwise sit out (7 players on 2 courts → 1 doubles + 1 singles, 1 out). A warning line explains the arithmetic
+  whenever fewer players than 4×courts are ticked.
 - **Game scores**: once saved, every game row has a **Score** button (any active club member): one game, two numbers, no draws
   → `sessions/{id}.games.gameScores["r<round>g<game>"] = {a, b, by, at}` written with a dot-path update so parallel entries on
   different courts never overwrite each other. Winners are highlighted; a **Today's table** (W / L / point difference) builds
