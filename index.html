@@ -1311,6 +1311,7 @@ function sheetTeamExpense(id, team, sessionId){
   const sess=S.sessions.filter(s=>s.team===team).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12);
   const defaultSplit = e.splitAmong || (e.sessionId && byId(S.sessions,e.sessionId) ? attendees(byId(S.sessions,e.sessionId)) : members.map(p=>p.id));
   const sel=new Set(defaultSplit);
+  const lockSplit=!canManage(team); // plain members can't pick who shares a cost: it follows who played (set by a club admin)
   const cats=["Court","Shuttles","Food & drinks","Transport","Other"];
   openSheet(id?"Edit cost":"Add cost", `<form id="texpForm" class="stack">
     <label class="f">What<input id="tTitle" required value="${esc(e.title)}" placeholder="Court 08:30–09:30"></label>
@@ -1318,8 +1319,8 @@ function sheetTeamExpense(id, team, sessionId){
     <div class="row"><label class="f grow">Category<select id="tCat">${cats.map(c=>`<option ${c===e.category?"selected":""}>${c}</option>`).join("")}</select></label><label class="f grow">Session<select id="tSession"><option value="">Not tied to a session</option>${sess.map(s=>`<option value="${s.id}" ${s.id===e.sessionId?"selected":""}>${esc(fmtDay(s.date))}</option>`).join("")}</select></label></div>
     <label class="f">Paid by<select id="tPaid">${members.map(p=>`<option value="${p.id}" ${p.id===e.paidBy?"selected":""}>${esc(fullName(p))}${p.id===uid?" (you)":""}</option>`).join("")}</select></label>
     ${feeMode(team)==="monthly"?`<label class="check"><input type="checkbox" id="tPot" ${(id&&(e.splitAmong||[]).length)?"":"checked"}> Paid from the club pot (monthly-fee club)</label><div class="tiny muted">Untick to split this one cost between specific people instead.</div>`:""}
-    <div class="stack" style="gap:6px" id="splitBox" ${feeMode(team)==="monthly"&&!(id&&(e.splitAmong||[]).length)?"hidden":""}><div class="row spread"><span class="small" style="font-weight:600;color:var(--muted)">Split equally between</span><span class="row" style="gap:6px"><button type="button" class="btn ghost sm" data-act="splitAll">All</button><button type="button" class="btn ghost sm" data-act="splitPlayed" ${e.sessionId||sessionId?"":"disabled"}>Who played</button></span></div>
-      <div class="chips" id="splitChips">${members.map(p=>`<button type="button" class="chip" data-split="${p.id}" aria-pressed="${sel.has(p.id)}">${avatar(p,"sm")}${esc(p.first)}</button>`).join("")}</div></div>
+    <div class="stack" style="gap:6px" id="splitBox" ${feeMode(team)==="monthly"&&!(id&&(e.splitAmong||[]).length)?"hidden":""}><div class="row spread"><span class="small" style="font-weight:600;color:var(--muted)">Split equally between</span><span class="row" style="gap:6px">${lockSplit?`<span class="tiny muted">Set by who played</span>`:`<button type="button" class="btn ghost sm" data-act="splitAll">All</button><button type="button" class="btn ghost sm" data-act="splitPlayed" ${e.sessionId||sessionId?"":"disabled"}>Who played</button>`}</span></div>
+      <div class="chips" id="splitChips">${members.map(p=>`<button type="button" class="chip" data-split="${p.id}" aria-pressed="${sel.has(p.id)}" ${lockSplit?"disabled":""}>${avatar(p,"sm")}${esc(p.first)}</button>`).join("")}</div></div>
     <label class="f">Note<textarea id="tNote">${esc(e.note||"")}</textarea></label>
   </form>`, `<button class="btn primary" data-act="saveTeamExpense" data-id="${id||""}" data-team="${team}">Save</button>${id&&(isAdmin()||e.createdBy===uid)?`<button class="btn danger" data-act="delExpense" data-id="${id}" style="flex:0 0 auto">Delete</button>`:""}`);
   // Changing the session: take its date and pre-select the people who played it.
