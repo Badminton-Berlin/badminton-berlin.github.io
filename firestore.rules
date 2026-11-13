@@ -170,9 +170,28 @@ service cloud.firestore {
     }
 
     // Weekly sessions: created/edited by admins or the team's members; votes (rsvps) are part of the document.
+    // "Votes are final" (teams/{t}.voteLock == "once"): members may not change or clear a vote that is already set; club admins
+    // and admins change it for them. Only exception: away mode setting the member's own vote to "no" (awayAuto) and undoing it.
+    function teamVoteFinal(t) {
+      return exists(/databases/$(db)/documents/teams/$(t))
+        && get(/databases/$(db)/documents/teams/$(t)).data.get("voteLock", "free") == "once";
+    }
+    function finalVotesKept() {
+      let before = resource.data.get("rsvps", {});
+      let after = request.resource.data.get("rsvps", {});
+      let d = after.diff(before);
+      let touched = d.changedKeys().union(d.removedKeys());
+      let me = request.auth.uid;
+      return touched.size() == 0
+        || (touched.hasOnly([me])
+            && ((after.get(me, null) == "no" && request.resource.data.get("awayAuto", {}).get(me, 0) == 1)
+                || (after.get(me, null) == null && before.get(me, null) == "no" && resource.data.get("awayAuto", {}).get(me, 0) == 1)));
+    }
     match /sessions/{id} {
       allow read: if isAdmin() || (isActiveMember() && resource.data.team == myTeam());
-      allow create, update: if isAdmin() || (isActiveMember() && request.resource.data.team == myTeam());
+      allow create: if isAdmin() || (isActiveMember() && request.resource.data.team == myTeam());
+      allow update: if isAdmin() || (isActiveMember() && request.resource.data.team == myTeam() && resource.data.team == myTeam()
+                                     && (isClubAdmin(myTeam()) || !teamVoteFinal(myTeam()) || finalVotesKept()));
       allow delete: if isAdmin();
     }
 
